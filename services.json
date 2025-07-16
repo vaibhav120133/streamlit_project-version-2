@@ -1,0 +1,81 @@
+[
+    {
+        "service_id": 1,
+        "customer_name": "Atharv Shukla",
+        "customer_email": "atharvshukla1@gmail.com",
+        "customer_phone": "1234567890",
+        "vehicle_type": "Car",
+        "vehicle_brand": "Toyota",
+        "vehicle_model": "Corolla",
+        "vehicle_no": "MP097IN890",
+        "service_types": [
+            "Engine Repair",
+            "AC Service"
+        ],
+        "description": "no",
+        "pickup_required": "No",
+        "pickup_address": "",
+        "service_date": "2025-07-10",
+        "status": "Cancelled",
+        "assigned_mechanic": "Manoj sharma",
+        "payment_status": "Pending",
+        "progress": 83,
+        "base_cost": 4500,
+        "extra_charges": 100,
+        "charge_description": "for break change",
+        "work_done": "ok",
+        "request_date": "2025-07-10 17:28:48"
+    },
+    {
+        "service_id": 2,
+        "customer_name": "Atharv Shukla",
+        "customer_email": "atharvshukla1@gmail.com",
+        "customer_phone": "1234567890",
+        "vehicle_type": "Bike",
+        "vehicle_brand": "Hero",
+        "vehicle_model": "Splendor",
+        "vehicle_no": "mp09MO3565",
+        "service_types": [
+            "General Maintenance"
+        ],
+        "description": "the chain issue",
+        "pickup_required": "No",
+        "pickup_address": "",
+        "service_date": "2025-07-12",
+        "status": "Pending",
+        "assigned_mechanic": null,
+        "payment_status": "Pending",
+        "progress": 45,
+        "base_cost": 1000,
+        "extra_charges": 500,
+        "charge_description": "break",
+        "work_done": "",
+        "request_date": "2025-07-11 15:15:53"
+    },
+    {
+        "service_id": 3,
+        "customer_name": "Atharv Shukla",
+        "customer_email": "atharvshukla1@gmail.com",
+        "customer_phone": "1234567890",
+        "vehicle_type": "Car",
+        "vehicle_brand": "Toyota",
+        "vehicle_model": "Fortuner",
+        "vehicle_no": "MP09ZC4771",
+        "service_types": [
+            "Oil Change"
+        ],
+        "description": "TIED THE BREAK ",
+        "pickup_required": "No",
+        "pickup_address": "",
+        "service_date": "2025-07-12",
+        "status": "Pending",
+        "assigned_mechanic": null,
+        "payment_status": "Pending",
+        "progress": 0,
+        "base_cost": 500,
+        "extra_charges": 0,
+        "charge_description": "",
+        "work_done": "",
+        "request_date": "2025-07-11 15:23:23"
+    }
+]

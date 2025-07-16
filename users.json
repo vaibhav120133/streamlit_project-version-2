@@ -1,0 +1,30 @@
+[
+    {
+        "full_name": "Vaibhav Gupta",
+        "email": "gvaibhav046@gmail.com",
+        "phone": "7722969402",
+        "password": "1!Vaibhav",
+        "user_type": "Admin"
+    },
+    {
+        "full_name": "Atharv Shukla",
+        "email": "atharvshukla1@gmail.com",
+        "phone": "1234567890",
+        "password": "2@Vaibhav",
+        "user_type": "Customer"
+    },
+    {
+        "full_name": "Aditya Sharma",
+        "email": "adityasharma@gmail.com",
+        "phone": "1122334455",
+        "password": "1!Aditya",
+        "user_type": "Customer"
+    },
+    {
+        "full_name": "Tarushee Gupta",
+        "email": "tarusheegupta214@gmail.com",
+        "phone": "8839732192",
+        "password": "Tarushee214!",
+        "user_type": "Customer"
+    }
+]
