@@ -26,5 +26,19 @@
         "phone": "8839732192",
         "password": "Tarushee214!",
         "user_type": "Customer"
+    },
+    {
+        "full_name": "Aaditya kamlaskar",
+        "email": "aadityakamlaskar121@gmail.com",
+        "phone": "8989654555",
+        "password": "4$Aditya",
+        "user_type": "Customer"
+    },
+    {
+        "full_name": "Aditya",
+        "email": "adityasharma11@gmail.com",
+        "phone": "0987654321",
+        "password": "Aditya@11",
+        "user_type": "Customer"
     }
 ]

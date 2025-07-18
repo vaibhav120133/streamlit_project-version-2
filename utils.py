@@ -2,146 +2,9 @@ import streamlit as st
 import base64
 import os
 import json
-from datetime import datetime
 
-# File paths
 USERS_FILE = "users.json"
 SERVICES_FILE = "services.json"
-
-def set_background_image(image_path="bg_image.jpg"):
-    """Set background image for the app"""
-    try:
-        if os.path.exists(image_path):
-            with open(image_path, "rb") as img_file:
-                base64_image = base64.b64encode(img_file.read()).decode()
-            
-            st.markdown(
-                f"""
-                <style>
-                .stApp {{
-                    background-image: url("data:image/png;base64,{base64_image}");
-                    background-size: cover;
-                    background-position: center;
-                    background-repeat: no-repeat;
-                    background-attachment: fixed;
-                }}
-                
-                /* Enhanced styling for better aesthetics */
-                .main {{
-                    background: rgba(255, 255, 255, 0.9);
-                    border-radius: 15px;
-                    padding: 20px;
-                    margin: 20px;
-                    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-                    backdrop-filter: blur(10px);
-                }}
-                
-                .stButton > button {{
-                    background: linear-gradient(45deg, #667eea 0%, #764ba2 100%);
-                    color: white;
-                    border: none;
-                    padding: 12px 24px;
-                    border-radius: 25px;
-                    font-weight: 600;
-                    font-size: 16px;
-                    cursor: pointer;
-                    transition: all 0.3s ease;
-                    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
-                }}
-                
-                .stButton > button:hover {{
-                    transform: translateY(-2px);
-                    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
-                }}
-                
-                .stSelectbox > div > div {{
-                    background: rgba(255, 255, 255, 0.8);
-                    border-radius: 10px;
-                    border: 2px solid #667eea;
-                }}
-                
-                .stTextInput > div > div > input {{
-                    background: rgba(255, 255, 255, 0.8);
-                    border-radius: 10px;
-                    border: 2px solid #667eea;
-                    padding: 12px;
-                }}
-                
-                .stTextArea > div > div > textarea {{
-                    background: rgba(255, 255, 255, 0.8);
-                    border-radius: 10px;
-                    border: 2px solid #667eea;
-                    padding: 12px;
-                }}
-                
-                .stExpander {{
-                    background: rgba(255, 255, 255, 0.9);
-                    border-radius: 10px;
-                    border: 1px solid #e0e0e0;
-                    margin: 10px 0;
-                }}
-                
-                .metric-card {{
-                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                    color: white;
-                    padding: 20px;
-                    border-radius: 15px;
-                    text-align: center;
-                    margin: 10px;
-                    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
-                }}
-                
-                .success-card {{
-                    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-                    color: white;
-                    padding: 15px;
-                    border-radius: 10px;
-                    margin: 10px 0;
-                }}
-                
-                .warning-card {{
-                    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-                    color: white;
-                    padding: 15px;
-                    border-radius: 10px;
-                    margin: 10px 0;
-                }}
-                
-                .info-card {{
-                    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-                    color: white;
-                    padding: 15px;
-                    border-radius: 10px;
-                    margin: 10px 0;
-                }}
-                
-                h1 {{
-                    color: #333;
-                    text-align: center;
-                    font-weight: 700;
-                    margin-bottom: 30px;
-                    text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
-                }}
-                
-                h2 {{
-                    color: #555;
-                    font-weight: 600;
-                    margin-bottom: 20px;
-                }}
-                
-                h3 {{
-                    color: #667eea;
-                    font-weight: 600;
-                    margin-bottom: 15px;
-                }}
-                </style>
-                """,
-                unsafe_allow_html=True
-            )
-        else:
-            st.warning(f"Background image '{image_path}' not found!")
-    except Exception as e:
-        st.error(f"Error loading background image: {str(e)}")
 
 def set_home_background():
     """Special background for home page"""
@@ -165,14 +28,6 @@ def set_home_background():
                     position: relative;
                 }}
                 
-                header[data-testid="stHeader"] {{
-                    display: none !important;
-                }}
-                
-                footer {{
-                    display: none !important;
-                }}
-                
                 .block-container {{
                     padding-top: 0rem !important;
                     padding-bottom: 50px !important;
@@ -194,7 +49,7 @@ def set_home_background():
                 .stButton {{
                     display: flex;
                     justify-content: center;
-                    width: 100%;
+                    width: 50%;
                     margin: 0 auto;
                 }}
                 
@@ -267,20 +122,146 @@ def set_home_background():
     except Exception as e:
         st.error(f"Error loading background image: {str(e)}")
 
-def display_password_requirements(password):
-    """Display password requirements with visual indicators"""
+def inject_global_css(bg_image_path="bg_image.jpg"):
+    """Inject the common CSS and background image used on all non-home pages."""
+    def _encode_image(path):
+        if os.path.exists(path):
+            with open(path, "rb") as f:
+                return base64.b64encode(f.read()).decode()
+        return None
+
+    b64 = _encode_image(bg_image_path)
+    bg_css = ""
+    if b64:
+        bg_css = f"""
+            .stApp {{
+                background-image: url("data:image/png;base64,{b64}") !important;
+                background-size: cover !important;
+                background-position: center center !important;
+                background-repeat: no-repeat !important;
+                background-attachment: fixed !important;
+            }}
+            .main {{
+                background: rgba(255, 255, 255, 0.9);
+                border-radius: 15px;
+                padding: 20px;
+                margin: 20px;
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+                backdrop-filter: blur(10px);
+            }}
+        """
+    common_css = """
+        .stButton > button, .stFormSubmitButton > button {
+            background: rgba(52, 73, 94, 0.9) !important;
+            color: #ecf0f1 !important;
+            border: 2px solid rgba(52, 73, 94, 0.9) !important;
+            border-radius: 10px !important;
+            font-weight: 600 !important;
+            font-size: 1.1em !important;
+            padding: 15px 30px !important;
+            transition: all 0.3s ease !important;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2) !important;
+            cursor: pointer;
+        }
+        .stButton > button:hover, .stFormSubmitButton > button:hover {
+            background: rgba(44, 62, 80, 1) !important;
+            border-color: rgba(44, 62, 80, 1) !important;
+            transform: translateY(-2px) !important;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3) !important;
+        }
+        .stButton > button:active, .stFormSubmitButton > button:active {
+            transform: translateY(0px) !important;
+        }
+        .stSelectbox > div > div {
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: 10px;
+            border: 2px solid #667eea;
+        }
+        .stTextInput > div > div > input,
+        input[type="text"],
+        input[type="email"],
+        input[type="password"],
+        .stTextArea > div > div > textarea {
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: 10px;
+            border: 2px solid #667eea;
+            padding: 12px !important;
+            color: #2c3e50 !important;
+            font-size: 1.05em !important;
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+        }
+        .stTextInput > div > div > input:focus,
+        .stTextArea > div > div > textarea:focus {
+            border-color: #764ba2 !important;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1) !important;
+            background: rgba(255, 255, 255, 1) !important;
+            outline: none;
+        }
+        .stExpander {
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 10px;
+            border: 1px solid #e0e0e0;
+            margin: 10px 0;
+        }
+        .metric-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 15px;
+            text-align: center;
+            margin: 10px;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+        .success-card {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 10px 0;
+        }
+        .warning-card {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 10px 0;
+        }
+        .info-card {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 10px 0;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            font-weight: 700;
+            margin-bottom: 30px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+        }
+        h2 {
+            color: #555;
+            font-weight: 600;
+            margin-bottom: 20px;
+        }
+        h3 {
+            color: #667eea;
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+    """
+
+    st.markdown(f"<style>{bg_css}{common_css}</style>", unsafe_allow_html=True)
+
+
+def display_password_requirements(password: str):
     special_chars = "!@#$%^&*()-_=+[]{}|;:'\",.<>?/`~"
-    has_upper = any(char.isupper() for char in password)
-    has_digit = any(char.isdigit() for char in password)
-    has_special = any(char in special_chars for char in password)
+    has_upper = any(c.isupper() for c in password)
+    has_digit = any(c.isdigit() for c in password)
+    has_special = any(c in special_chars for c in password)
     has_length = len(password) >= 8
-    
-    # Visual indicators
-    upper_icon = "✅" if has_upper else "❌"
-    digit_icon = "✅" if has_digit else "❌"
-    special_icon = "✅" if has_special else "❌"
-    length_icon = "✅" if has_length else "❌"
-    
+
     st.markdown(
         f"""
         <div style="
@@ -292,73 +273,72 @@ def display_password_requirements(password):
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
         ">
             <h4 style="color: #2c3e50; margin: 0 0 10px 0; font-size: 1.1em;">🛡️ Password Requirements:</h4>
-            <p style="margin: 5px 0; color: #34495e; font-size: 0.9em;">{upper_icon} At least one uppercase letter</p>
-            <p style="margin: 5px 0; color: #34495e; font-size: 0.9em;">{digit_icon} At least one digit</p>
-            <p style="margin: 5px 0; color: #34495e; font-size: 0.9em;">{special_icon} At least one special character</p>
-            <p style="margin: 5px 0; color: #34495e; font-size: 0.9em;">{length_icon} At least 8 characters long</p>
+            <p style="margin: 5px 0; color: #34495e; font-size: 0.9em;">{'✅' if has_upper else '❌'} At least one uppercase letter</p>
+            <p style="margin: 5px 0; color: #34495e; font-size: 0.9em;">{'✅' if has_digit else '❌'} At least one digit</p>
+            <p style="margin: 5px 0; color: #34495e; font-size: 0.9em;">{'✅' if has_special else '❌'} At least one special character</p>
+            <p style="margin: 5px 0; color: #34495e; font-size: 0.9em;">{'✅' if has_length else '❌'} At least 8 characters long</p>
         </div>
         """,
-        unsafe_allow_html=True
+        unsafe_allow_html=True,
     )
 
-def load_users():
-    """Load users from JSON file"""
-    if os.path.exists(USERS_FILE):
+
+def _load_json_safe(file_path):
+    if os.path.exists(file_path):
         try:
-            with open(USERS_FILE, "r") as f:
+            with open(file_path, "r") as f:
                 content = f.read().strip()
                 if content:
                     return json.loads(content)
         except (json.JSONDecodeError, FileNotFoundError):
             pass
     return []
+
+
+def _save_json(file_path, data):
+    with open(file_path, "w") as f:
+        json.dump(data, f, indent=4)
+
+
+def load_users():
+    return _load_json_safe(USERS_FILE)
+
 
 def save_users(users):
-    """Save users to JSON file"""
-    with open(USERS_FILE, "w") as f:
-        json.dump(users, f, indent=4)
+    _save_json(USERS_FILE, users)
+
 
 def load_services():
-    """Load services from JSON file"""
-    if os.path.exists(SERVICES_FILE):
-        try:
-            with open(SERVICES_FILE, "r") as f:
-                content = f.read().strip()
-                if content:
-                    return json.loads(content)
-        except (json.JSONDecodeError, FileNotFoundError):
-            pass
-    return []
+    return _load_json_safe(SERVICES_FILE)
+
 
 def save_services(services):
-    """Save services to JSON file"""
-    with open(SERVICES_FILE, "w") as f:
-        json.dump(services, f, indent=4)
+    _save_json(SERVICES_FILE, services)
 
-def check_password(password):
-    """Validate password strength"""
+
+def check_password(password: str) -> bool:
     special_chars = "!@#$%^&*()-_=+[]{}|;:'\",.<>?/`~"
-    has_upper = any(char.isupper() for char in password)
-    has_digit = any(char.isdigit() for char in password)
-    has_special = any(char in special_chars for char in password)
-    has_len = len(password) >= 8
-    
-    return has_upper and has_digit and has_special and has_len
+    return (
+        len(password) >= 8
+        and any(c.isupper() for c in password)
+        and any(c.isdigit() for c in password)
+        and any(c in special_chars for c in password)
+    )
 
-def get_user_by_email(email):
-    """Get user by email"""
+
+def get_user_by_email(email: str):
     users = load_users()
-    return next((u for u in users if u["email"] == email), None)
+    email_lower = email.lower()
+    return next((u for u in users if u["email"].lower() == email_lower), None)
 
-def display_metric_card(title, value, color="primary"):
-    """Display a metric card with custom styling"""
+
+def display_metric_card(title: str, value, color="primary"):
     color_map = {
         "primary": "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
         "success": "linear-gradient(135deg, #11998e 0%, #38ef7d 100%)",
         "warning": "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
-        "info": "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)"
+        "info": "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)",
     }
-    
     st.markdown(
         f"""
         <div style="
@@ -374,18 +354,17 @@ def display_metric_card(title, value, color="primary"):
             <h2 style="margin: 10px 0 0 0; color: white; font-size: 2em;">{value}</h2>
         </div>
         """,
-        unsafe_allow_html=True
+        unsafe_allow_html=True,
     )
 
-def display_alert(message, alert_type="info"):
-    """Display styled alert messages"""
+
+def display_alert(message: str, alert_type="info"):
     color_map = {
         "success": "linear-gradient(135deg, #11998e 0%, #38ef7d 100%)",
         "warning": "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
         "error": "linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%)",
-        "info": "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)"
+        "info": "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)",
     }
-    
     st.markdown(
         f"""
         <div style="
@@ -399,18 +378,18 @@ def display_alert(message, alert_type="info"):
             {message}
         </div>
         """,
-        unsafe_allow_html=True
+        unsafe_allow_html=True,
     )
 
+
 def create_navigation_buttons():
-    """Create styled navigation buttons"""
     col1, col2, col3 = st.columns(3)
-    
+
     with col1:
         if st.button("🏠 Home", key="nav_home"):
             st.session_state.page = "home"
             st.rerun()
-    
+
     with col2:
         if st.button("👤 Profile", key="nav_profile"):
             if st.session_state.get("logged_in", False):
@@ -422,7 +401,7 @@ def create_navigation_buttons():
             else:
                 st.session_state.page = "login"
             st.rerun()
-    
+
     with col3:
         if st.button("🚪 Logout", key="nav_logout"):
             st.session_state.page = "home"
@@ -430,4 +409,3 @@ def create_navigation_buttons():
             st.session_state.pop("email", None)
             st.session_state.pop("user_type", None)
             st.rerun()
-
