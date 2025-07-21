@@ -40,5 +40,12 @@
         "phone": "0987654321",
         "password": "Aditya@11",
         "user_type": "Customer"
+    },
+    {
+        "full_name": "Dulari Gupta",
+        "email": "dularigupta123@gmail.com",
+        "phone": "9406530214",
+        "password": "3#Vaibhav",
+        "user_type": "Customer"
     }
 ]

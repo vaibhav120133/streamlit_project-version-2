@@ -8,66 +8,66 @@ from utils import (
     save_users,
 )
 
-def display_security_notice():
-    st.markdown("""
-    <div style="
-        background: linear-gradient(135deg, rgba(231, 76, 60, 0.1) 0%, rgba(192, 57, 43, 0.1) 100%);
-        border-radius: 15px;
-        padding: 20px;
-        margin: 20px 0;
-        text-align: center;
-        border: 1px solid rgba(231, 76, 60, 0.3);
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-    ">
-        <h4 style="color: #e74c3c; margin: 0 0 10px 0; font-size: 1.2em;">🔐 Security Notice</h4>
-        <p style="color: #34495e; margin: 0; font-size: 0.95em; line-height: 1.4;">
-            For your security, we require both email and phone verification. 
-            Never share your login credentials with anyone.
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
+class ForgotPasswordFlow:
+    def __init__(self):
+        self.init_session_state()
 
-def validate_reset_input(new_password, confirm_password):
-    if not new_password or not confirm_password:
-        return False, "⚠️ Please fill in both password fields"
-    if new_password != confirm_password:
-        return False, "❌ Passwords do not match"
-    if not check_password(new_password):
-        return False, "❌ Password must contain at least one uppercase letter, one digit, minimum 8 characters, and one special character"
-    return True, "Password validation successful"
+    def init_session_state(self):
+        if "fp_step" not in st.session_state:
+            st.session_state.fp_step = 1
+        if "fp_user_data" not in st.session_state:
+            st.session_state.fp_user_data = {}
 
-def main():
-    inject_global_css()
+    @staticmethod
+    def display_security_notice():
+        st.markdown("""
+        <div style="
+            background: linear-gradient(135deg, rgba(231, 76, 60, 0.1) 0%, rgba(192, 57, 43, 0.1) 100%);
+            border-radius: 15px;
+            padding: 20px;
+            margin: 20px 0;
+            text-align: center;
+            border: 1px solid rgba(231, 76, 60, 0.3);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        ">
+            <h4 style="color: #e74c3c; margin: 0 0 10px 0; font-size: 1.2em;">🔐 Security Notice</h4>
+            <p style="color: #34495e; margin: 0; font-size: 0.95em; line-height: 1.4;">
+                For your security, we require both email and phone verification. 
+                Never share your login credentials with anyone.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
 
-    col1, col2, col3 = st.columns([1, 2, 1])
+    @staticmethod
+    def validate_reset_input(new_password, confirm_password):
+        if not new_password or not confirm_password:
+            return False, "⚠️ Please fill in both password fields"
+        if new_password != confirm_password:
+            return False, "❌ Passwords do not match"
+        if not check_password(new_password):
+            return False, "❌ Password must contain at least one uppercase letter, one digit, minimum 8 characters, and one special character"
+        return True, "Password validation successful"
 
-    # Initialize multi-step state variables
-    if "fp_step" not in st.session_state:
-        st.session_state.fp_step = 1
-    if "fp_user_data" not in st.session_state:
-        st.session_state.fp_user_data = {}
-
-    # Step 1: Verify email + phone
-    if st.session_state.fp_step == 1:
+    def step_1_verify(self, col2):
         with col2:
-            st.markdown("""
-            <h1 style="text-align:center; color:#2c3e50; font-weight:700; margin-bottom:15px;">🔍 Account Verification</h1>
-            """, unsafe_allow_html=True)
-            st.markdown(":red[Please enter your registered email and phone number]", unsafe_allow_html=True)
+            st.title("🔍 Account Verification")
+            st.caption(":red[Please enter your registered email and phone number]")
 
             with st.form("verification_form"):
-                st.markdown("""
-                <h3 style="color:#2c3e50; margin-bottom:15px; font-size:1.3em; font-weight:600;">
-                    📧 Email Address
-                </h3>
-                """, unsafe_allow_html=True)
-                email = st.text_input("📧 Email Address", placeholder="Enter your registered email", key="email_verify", label_visibility="collapsed")
-                st.markdown("""
-                <h3 style="color:#2c3e50; margin-bottom:15px; font-size:1.3em; font-weight:600;">
-                    📱 Phone Number
-                </h3>
-                """, unsafe_allow_html=True)
-                phone = st.text_input("📱 Phone Number", placeholder="Enter your registered phone number", key="phone_verify", label_visibility="collapsed")
+                st.markdown("### 📧 Email Address")
+                email = st.text_input(
+                    "📧 Email Address", 
+                    placeholder="Enter your registered email", 
+                    key="email_verify", 
+                    label_visibility="collapsed"
+                )
+                st.markdown("### 📱 Phone Number")
+                phone = st.text_input(
+                    "📱 Phone Number", 
+                    placeholder="Enter your registered phone number", 
+                    key="phone_verify", 
+                    label_visibility="collapsed"
+                )
                 verify_submitted = st.form_submit_button("🔍 Verify Account", use_container_width=True)
 
             if verify_submitted:
@@ -93,32 +93,36 @@ def main():
                     else:
                         display_alert("❌ No account found with the provided email and phone number", "error")
 
-    # Step 2: Reset password form
-    elif st.session_state.fp_step == 2:
+    def step_2_reset_password(self, col2):
         with col2:
-            st.markdown("""<h1 style='text-align:center; color:#2c3e50; font-weight:700; margin-bottom:15px;'>🔒 Set New Password</h1>""", unsafe_allow_html=True)
+            st.title("🔒 Set New Password")
             st.markdown(f"**👤 Account:** {st.session_state.fp_user_data.get('full_name', 'N/A')}")
             st.markdown(f"**📧 Email:** {st.session_state.fp_user_data.get('email', 'N/A')}")
+
             with st.form("password_reset_form"):
-                st.markdown("""
-                <h3 style="color:#2c3e50; margin-bottom:15px; font-size:1.3em; font-weight:600;">
-                    🔒 New Password
-                </h3>
-                """, unsafe_allow_html=True)
-                new_password = st.text_input("🔒 New Password", type="password", placeholder="Enter new password", key="new_password", label_visibility="collapsed")
-                st.markdown("""
-                <h3 style="color:#2c3e50; margin-bottom:15px; font-size:1.3em; font-weight:600;">
-                    🔐 Confirm Password
-                </h3>
-                """, unsafe_allow_html=True)
-                confirm_password = st.text_input("🔐 Confirm Password", type="password", placeholder="Confirm new password", key="confirm_new_password", label_visibility="collapsed")
+                st.markdown("### 🔒 New Password")
+                new_password = st.text_input(
+                    "🔒 New Password", 
+                    type="password", 
+                    placeholder="Enter new password", 
+                    key="new_password", 
+                    label_visibility="collapsed"
+                )
+                st.markdown("### 🔐 Confirm Password")
+                confirm_password = st.text_input(
+                    "🔐 Confirm Password", 
+                    type="password", 
+                    placeholder="Confirm new password", 
+                    key="confirm_new_password", 
+                    label_visibility="collapsed"
+                )
                 reset_submitted = st.form_submit_button("🔄 Reset Password", use_container_width=True)
 
             if new_password:
                 display_password_requirements(new_password)
 
             if reset_submitted:
-                valid, message = validate_reset_input(new_password, confirm_password)
+                valid, message = self.validate_reset_input(new_password, confirm_password)
                 if not valid:
                     display_alert(message, "error")
                 else:
@@ -141,8 +145,7 @@ def main():
                     else:
                         display_alert("❌ Error updating password. Please try again.", "error")
 
-    # Step 3: Success message
-    elif st.session_state.fp_step == 3:
+    def step_3_success(self, col2):
         with col2:
             st.markdown("""
             <div style="
@@ -168,43 +171,58 @@ def main():
                 st.session_state.fp_user_data = {}
                 st.rerun()
 
-    # Navigation buttons and security notice at bottom
-    st.markdown("<br><br>", unsafe_allow_html=True)
-    with col2:
+    def navigation(self, col2):
+        st.markdown("<br><br>", unsafe_allow_html=True)
+        with col2:
+            if st.session_state.fp_step == 1:
+                c1, c2 = st.columns(2)
+                with c1:
+                    if st.button("🔐 Back to Login", use_container_width=True):
+                        st.session_state.page = "login"
+                        st.session_state.fp_step = 1
+                        st.session_state.fp_user_data = {}
+                        st.rerun()
+                with c2:
+                    if st.button("🏠 Back to Home", use_container_width=True):
+                        st.session_state.page = "home"
+                        st.session_state.fp_step = 1
+                        st.session_state.fp_user_data = {}
+                        st.rerun()
+            elif st.session_state.fp_step == 2:
+                c1, c2 = st.columns(2)
+                with c1:
+                    if st.button("⬅️ Back to Verification", use_container_width=True):
+                        st.session_state.fp_step = 1
+                        st.rerun()
+                with c2:
+                    if st.button("🏠 Back to Home", use_container_width=True):
+                        st.session_state.page = "home"
+                        st.session_state.fp_step = 1
+                        st.session_state.fp_user_data = {}
+                        st.rerun()
+            elif st.session_state.fp_step == 3:
+                if st.button("🏠 Back to Home", use_container_width=True):
+                    st.session_state.page = "home"
+                    st.session_state.fp_step = 1
+                    st.session_state.fp_user_data = {}
+                    st.rerun()
+            self.display_security_notice()
+
+    def run(self):
+        inject_global_css()
+        col1, col2, col3 = st.columns([1, 2, 1])
+
         if st.session_state.fp_step == 1:
-            c1, c2 = st.columns(2)
-            with c1:
-                if st.button("🔐 Back to Login", use_container_width=True):
-                    st.session_state.page = "login"
-                    st.session_state.fp_step = 1
-                    st.session_state.fp_user_data = {}
-                    st.rerun()
-            with c2:
-                if st.button("🏠 Back to Home", use_container_width=True):
-                    st.session_state.page = "home"
-                    st.session_state.fp_step = 1
-                    st.session_state.fp_user_data = {}
-                    st.rerun()
+            self.step_1_verify(col2)
         elif st.session_state.fp_step == 2:
-            c1, c2 = st.columns(2)
-            with c1:
-                if st.button("⬅️ Back to Verification", use_container_width=True):
-                    st.session_state.fp_step = 1
-                    st.rerun()
-            with c2:
-                if st.button("🏠 Back to Home", use_container_width=True):
-                    st.session_state.page = "home"
-                    st.session_state.fp_step = 1
-                    st.session_state.fp_user_data = {}
-                    st.rerun()
+            self.step_2_reset_password(col2)
         elif st.session_state.fp_step == 3:
-            if st.button("🏠 Back to Home", use_container_width=True):
-                st.session_state.page = "home"
-                st.session_state.fp_step = 1
-                st.session_state.fp_user_data = {}
-                st.rerun()
- 
-        display_security_notice()
+            self.step_3_success(col2)
+
+        self.navigation(col2)
+
+def main():
+    ForgotPasswordFlow().run()
 
 if __name__ == "__main__":
     main()
