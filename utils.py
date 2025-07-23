@@ -1,7 +1,6 @@
 import streamlit as st
 import base64
 import os
-import json
 
 def set_home_background():
     """Special background for home page"""
