@@ -1,9 +1,9 @@
 import streamlit as st
 from utils import (
     inject_global_css,
-    load_users,
     display_alert
 )
+from database import fetch_all_users
 
 class LoginPage:
     def __init__(self):
@@ -42,7 +42,7 @@ class LoginPage:
             if not self.email or not self.password:
                 display_alert("⚠️ Please fill in all fields", "warning")
             else:
-                users = load_users()
+                users = fetch_all_users()
                 if not users:
                     display_alert("❌ No users found. Please signup first.", "error")
                 else:

@@ -3,10 +3,9 @@ from utils import (
     inject_global_css,
     check_password,
     display_password_requirements,
-    display_alert,
-    load_users,
-    save_users,
+    display_alert
 )
+from database import fetch_all_users, add_user
 
 class ForgotPasswordFlow:
     def __init__(self):
@@ -76,7 +75,7 @@ class ForgotPasswordFlow:
                 if not email_lc or not phone_str:
                     display_alert("⚠️ Please enter both email and phone number", "error")
                 else:
-                    users = load_users()
+                    users = fetch_all_users()
                     user = next(
                         (u for u in users if u.get("email", "").lower() == email_lc and u.get("phone", "") == phone_str),
                         None
@@ -126,7 +125,7 @@ class ForgotPasswordFlow:
                 if not valid:
                     display_alert(message, "error")
                 else:
-                    users = load_users()
+                    users = fetch_all_users()
                     updated = False
                     for i, user in enumerate(users):
                         if (
@@ -137,7 +136,7 @@ class ForgotPasswordFlow:
                             updated = True
                             break
                     if updated:
-                        save_users(users)
+                        add_user(users)
                         st.session_state.fp_step = 3
                         display_alert("🎉 Password reset successful!", "success")
                         st.balloons()

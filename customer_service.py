@@ -1,9 +1,7 @@
 import streamlit as st
 from datetime import datetime
-from utils import (
-    load_services, load_users, save_services,
-    inject_global_css, display_alert
-)
+from utils import inject_global_css, display_alert
+from database import fetch_all_services, fetch_all_users, save_service, update_payment_status
 
 # --- Configuration Constants ---
 SERVICE_PRICES = {
@@ -70,7 +68,7 @@ class CustomerServiceRequest:
     def calculate_base_cost(self):
         return sum(SERVICE_PRICES.get(s, 0) for s in self.service_types)
 
-    def to_dict(self, service_id):
+    def to_dict(self, service_id=None):
         return {
             "service_id": service_id,
             "customer_name": self.user.full_name,
@@ -109,20 +107,17 @@ class CustomerServicePortal:
 
     @staticmethod
     def handle_payment(service_id):
-        services = load_services()
-        for service in services:
-            if service["service_id"] == service_id:
-                service["payment_status"] = "Done"
-                break
-        save_services(services)
+        # Use DB update function to mark payment done
+        update_payment_status(service_id)
 
     @staticmethod
     def clear_state():
-        for key in [
+        keys = [
             'booking_completed', 'payment_pending', 'payment_completed', 'current_service_id',
             'selected_services', 'total_cost', 'vehicle_no', 'service_date', 'vehicle_type',
             'vehicle_brand', 'vehicle_model', 'description', 'show_payment_page', 'pending_service_id'
-        ]:
+        ]
+        for key in keys:
             if key in st.session_state:
                 del st.session_state[key]
 
@@ -146,16 +141,12 @@ class CustomerServicePortal:
 
     @staticmethod
     def process_booking(user, vehicle, selected_services, description, pickup_required, pickup_address, service_date):
-        services = load_services()
         service_obj = CustomerServiceRequest(
             user, vehicle, selected_services, description,
             pickup_required, pickup_address, service_date
         )
-        service_id = len(services) + 1
-        new_service = service_obj.to_dict(service_id)
-        services.append(new_service)
-        save_services(services)
-        # Update session state for booking status
+        new_service = service_obj.to_dict(None)
+        service_id = save_service(new_service)  # Insert to DB, get assigned ID
         st.session_state["booking_completed"] = True
         st.session_state["payment_pending"] = True
         st.session_state["current_service_id"] = service_id
@@ -173,7 +164,8 @@ class CustomerServicePortal:
     @staticmethod
     def render_payment_success_page():
         service_id = st.session_state.get('pending_service_id')
-        CustomerServicePortal.handle_payment(service_id)
+        if service_id:
+            CustomerServicePortal.handle_payment(service_id)
         st.title("💳 Payment Successful!")
         st.success("✅ Payment Completed Successfully! Your service booking has been confirmed and payment has been processed.")
         st.balloons()
@@ -200,6 +192,7 @@ class CustomerServicePortal:
     @staticmethod
     def render_service_form(user):
         st.header("🛠️ Request a Vehicle Service")
+
         if st.session_state.get('payment_completed', False):
             st.success("✅ Payment Completed Successfully! Your service booking has been confirmed and payment has been processed.")
             st.info("You can now make a new booking below.")
@@ -251,7 +244,7 @@ class CustomerServicePortal:
     @staticmethod
     def render_service_history(user):
         st.header("📋 Your Service History")
-        services = load_services()
+        services = fetch_all_services()
         user_services = [s for s in services if s["customer_email"] == user.email]
         if not user_services:
             st.info("📋 No service requests found. Create your first service request!")
@@ -329,7 +322,7 @@ class CustomerServicePortal:
 # --- Main entry point ---
 def main():
     inject_global_css()
-    users = load_users()
+    users = fetch_all_users()
     email = st.session_state.get("email", "guest@example.com")
     user_data = next((u for u in users if u["email"] == email), None)
     user = User(user_data) if user_data else User({})
@@ -343,3 +336,4 @@ def main():
     elif menu == "Service History":
         CustomerServicePortal.render_service_history(user)
     CustomerServicePortal.render_logout_section()
+

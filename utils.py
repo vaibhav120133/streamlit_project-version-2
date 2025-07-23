@@ -3,9 +3,6 @@ import base64
 import os
 import json
 
-USERS_FILE = "users.json"
-SERVICES_FILE = "services.json"
-
 def set_home_background():
     """Special background for home page"""
     image_path = "background1.png"
@@ -282,40 +279,6 @@ def display_password_requirements(password: str):
         unsafe_allow_html=True,
     )
 
-
-def _load_json_safe(file_path):
-    if os.path.exists(file_path):
-        try:
-            with open(file_path, "r") as f:
-                content = f.read().strip()
-                if content:
-                    return json.loads(content)
-        except (json.JSONDecodeError, FileNotFoundError):
-            pass
-    return []
-
-
-def _save_json(file_path, data):
-    with open(file_path, "w") as f:
-        json.dump(data, f, indent=4)
-
-
-def load_users():
-    return _load_json_safe(USERS_FILE)
-
-
-def save_users(users):
-    _save_json(USERS_FILE, users)
-
-
-def load_services():
-    return _load_json_safe(SERVICES_FILE)
-
-
-def save_services(services):
-    _save_json(SERVICES_FILE, services)
-
-
 def check_password(password: str) -> bool:
     special_chars = "!@#$%^&*()-_=+[]{}|;:'\",.<>?/`~"
     return (
@@ -324,12 +287,6 @@ def check_password(password: str) -> bool:
         and any(c.isdigit() for c in password)
         and any(c in special_chars for c in password)
     )
-
-
-def get_user_by_email(email: str):
-    users = load_users()
-    email_lower = email.lower()
-    return next((u for u in users if u["email"].lower() == email_lower), None)
 
 
 def display_metric_card(title: str, value, color="primary"):

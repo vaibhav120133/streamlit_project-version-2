@@ -1,12 +1,11 @@
 import streamlit as st
 from utils import (
     inject_global_css,
-    load_users,
-    save_users,
     display_alert,
     check_password,
     display_password_requirements,
 )
+from database import fetch_all_users, add_user
 
 class SignUpPage:
     def __init__(self):
@@ -40,7 +39,7 @@ class SignUpPage:
     @staticmethod
     def check_existing_users(full_name, email, phone):
         """Return False, error_msg if conflict found"""
-        users = load_users()
+        users = fetch_all_users()
         if any(u["full_name"].lower() == full_name.lower() for u in users):
             return False, "❌ Full name already exists. Please choose another."
         if any(u["email"].lower() == email.lower() for u in users):
@@ -120,9 +119,7 @@ class SignUpPage:
                         "password": self.password,
                         "user_type": "Customer"
                     }
-                    users = load_users()
-                    users.append(user)
-                    save_users(users)
+                    add_user(user)
                     display_alert(f"🎉 Registration successful! Welcome, {self.full_name}!", "success")
                     st.session_state.logged_in = True
                     st.session_state.email = self.email.lower().strip()
