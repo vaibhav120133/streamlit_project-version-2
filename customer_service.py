@@ -1,18 +1,27 @@
 import streamlit as st
 from datetime import datetime
 from utils import inject_global_css, display_alert
-from database import fetch_all_services, fetch_all_users, save_service, update_payment_status
+from database import (
+    fetch_all_users,
+    fetch_vehicles_by_user,
+    add_vehicle,
+    save_service,
+    get_services_by_customer_id,
+    update_payment_status,
+    get_service_by_id,
+)
 
-# --- Configuration Constants ---
+# Pricing dictionary for each service type
 SERVICE_PRICES = {
     "Oil Change": 500,
     "Engine Repair": 3000,
     "AC Service": 1500,
     "General Maintenance": 1000,
     "Chain Adjustment": 300,
-    "Brake Check": 200
+    "Brake Check": 200,
 }
 
+# Vehicle configuration for dropdowns
 VEHICLE_CONFIG = {
     "Car": {
         "brands": ["Toyota", "Honda", "Hyundai"],
@@ -21,7 +30,7 @@ VEHICLE_CONFIG = {
             "Honda": ["Civic", "Accord", "City"],
             "Hyundai": ["i20", "Creta", "Verna"],
         },
-        "services": ["Oil Change", "Engine Repair", "AC Service", "General Maintenance"]
+        "services": ["Oil Change", "Engine Repair", "AC Service", "General Maintenance"],
     },
     "Bike": {
         "brands": ["Yamaha", "Hero", "Bajaj"],
@@ -30,310 +39,280 @@ VEHICLE_CONFIG = {
             "Hero": ["Splendor", "HF Deluxe", "Glamour"],
             "Bajaj": ["Pulsar", "Avenger", "Dominar"],
         },
-        "services": ["Oil Change", "Chain Adjustment", "Brake Check", "General Maintenance"]
+        "services": ["Oil Change", "Chain Adjustment", "Brake Check", "General Maintenance"],
     }
 }
 
-# --- OOP Classes ---
 
 class User:
     def __init__(self, data):
-        self.full_name = data.get("full_name", "")
-        self.email = data.get("email", "")
-        self.phone = data.get("phone", "")
+        self.id = data.get("id")
+        self.full_name = data.get("full_name") or ""
+        self.email = data.get("email") or ""
+        self.phone = data.get("phone") or ""
         self.user_type = data.get("user_type", "Customer")
 
-class Vehicle:
-    def __init__(self, vtype, brand, model, number):
-        self.type = vtype
-        self.brand = brand
-        self.model = model
-        self.number = number
 
-class CustomerServiceRequest:
-    def __init__(self, user, vehicle, service_types, description, pickup_required, pickup_address, service_date):
+def validate_vehicle_form(vehicle_no, vtype, brand, model):
+    errors = []
+    if not vehicle_no.strip():
+        errors.append("Vehicle number is required.")
+    if vtype not in VEHICLE_CONFIG:
+        errors.append("Invalid vehicle type selected.")
+    if brand not in VEHICLE_CONFIG.get(vtype, {}).get("brands", []):
+        errors.append("Invalid brand selected.")
+    if model not in VEHICLE_CONFIG.get(vtype, {}).get("models", {}).get(brand, []):
+        errors.append("Invalid model selected.")
+    return errors
+
+
+def validate_service_booking_form(selected_vehicle, selected_services, description, pickup_required, pickup_address):
+    errors = []
+    if not selected_vehicle:
+        errors.append("Please select a vehicle.")
+    if not selected_services:
+        errors.append("Select at least one service.")
+    if not description.strip():
+        errors.append("Service description is required.")
+    if pickup_required == "Yes" and not pickup_address.strip():
+        errors.append("Pickup address is required if pickup is selected.")
+    return errors
+
+
+def calculate_cost(service_types):
+    return sum(SERVICE_PRICES.get(svc, 0) for svc in service_types)
+
+
+class CustomerDashboard:
+    def __init__(self, user):
         self.user = user
-        self.vehicle = vehicle
-        self.service_types = service_types
-        self.description = description
-        self.pickup_required = pickup_required
-        self.pickup_address = pickup_address if pickup_required == "Yes" else None
-        self.service_date = service_date.strftime("%Y-%m-%d") if type(service_date) != str else service_date
-        self.status = "Pending"
-        self.payment_status = "Pending"
-        self.assigned_mechanic = None
-        self.base_cost = self.calculate_base_cost()
-        self.request_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    def calculate_base_cost(self):
-        return sum(SERVICE_PRICES.get(s, 0) for s in self.service_types)
+    def run(self):
+        inject_global_css()
+        st.title("🚗 Vehicle Service Dashboard")  # Fixed main title on all pages
 
-    def to_dict(self, service_id=None):
-        return {
-            "service_id": service_id,
-            "customer_name": self.user.full_name,
-            "customer_email": self.user.email,
-            "customer_phone": self.user.phone,
-            "vehicle_type": self.vehicle.type,
-            "vehicle_brand": self.vehicle.brand,
-            "vehicle_model": self.vehicle.model,
-            "vehicle_no": self.vehicle.number,
-            "service_types": self.service_types,
-            "description": self.description,
-            "pickup_required": self.pickup_required,
-            "pickup_address": self.pickup_address,
-            "service_date": self.service_date,
-            "status": self.status,
-            "assigned_mechanic": self.assigned_mechanic,
-            "payment_status": self.payment_status,
-            "base_cost": self.base_cost,
-            "work_done": "",
-            "request_date": self.request_date
-        }
-
-class CustomerServicePortal:
-    @staticmethod
-    def validate_form(vehicle_no, description, selected_services, pickup_required, pickup_address):
-        errors = []
-        if not vehicle_no.strip():
-            errors.append("Vehicle number is required")
-        if not description.strip():
-            errors.append("Service description is required")
-        if not selected_services:
-            errors.append("Please select at least one service")
-        if pickup_required == "Yes" and not pickup_address.strip():
-            errors.append("Pickup address is required when pickup is selected")
-        return errors
-
-    @staticmethod
-    def handle_payment(service_id):
-        # Use DB update function to mark payment done
-        update_payment_status(service_id)
-
-    @staticmethod
-    def clear_state():
-        keys = [
-            'booking_completed', 'payment_pending', 'payment_completed', 'current_service_id',
-            'selected_services', 'total_cost', 'vehicle_no', 'service_date', 'vehicle_type',
-            'vehicle_brand', 'vehicle_model', 'description', 'show_payment_page', 'pending_service_id'
-        ]
-        for key in keys:
-            if key in st.session_state:
-                del st.session_state[key]
-
-    @staticmethod
-    def render_booking_summary(service_id, selected_services, total_cost):
-        st.success("🎉 Booking Confirmed!")
-        st.write(f"**Service ID:** #{service_id}")
-        st.write(f"**Vehicle Number:** {st.session_state.get('vehicle_no', '')}")
-        st.write(f"**Vehicle Type:** {st.session_state.get('vehicle_type', '')}")
-        st.write(f"**Brand:** {st.session_state.get('vehicle_brand', '')}")
-        st.write(f"**Model:** {st.session_state.get('vehicle_model', '')}")
-        st.write(f"**Service Date:** {st.session_state.get('service_date', '')}")
-        st.write(f"**Service Description:** {st.session_state.get('description', '')}")
-
-        st.markdown("### Service Charges Breakdown")
-        for service in selected_services:
-            price = SERVICE_PRICES.get(service, 0)
-            st.write(f"- {service}: ₹{price}")
-
-        st.write(f"**Total Amount:** ₹{total_cost}")
-
-    @staticmethod
-    def process_booking(user, vehicle, selected_services, description, pickup_required, pickup_address, service_date):
-        service_obj = CustomerServiceRequest(
-            user, vehicle, selected_services, description,
-            pickup_required, pickup_address, service_date
+        choice = st.sidebar.radio(
+            "Options", ["Add Vehicle", "Book Service", "Service History", "My Vehicles"]
         )
-        new_service = service_obj.to_dict(None)
-        service_id = save_service(new_service)  # Insert to DB, get assigned ID
-        st.session_state["booking_completed"] = True
-        st.session_state["payment_pending"] = True
-        st.session_state["current_service_id"] = service_id
-        st.session_state["selected_services"] = selected_services
-        st.session_state["total_cost"] = service_obj.base_cost
-        st.session_state["vehicle_no"] = vehicle.number
-        st.session_state["service_date"] = service_obj.service_date
-        st.session_state["vehicle_type"] = vehicle.type
-        st.session_state["vehicle_brand"] = vehicle.brand
-        st.session_state["vehicle_model"] = vehicle.model
-        st.session_state["description"] = description
-        display_alert(f"🎉 Service request #{service_id} submitted successfully!", "success")
-        st.rerun()
 
-    @staticmethod
-    def render_payment_success_page():
-        service_id = st.session_state.get('pending_service_id')
-        if service_id:
-            CustomerServicePortal.handle_payment(service_id)
-        st.title("💳 Payment Successful!")
-        st.success("✅ Payment Completed Successfully! Your service booking has been confirmed and payment has been processed.")
-        st.balloons()
-        col1, col2, col3 = st.columns([1, 1, 1])
-        with col1:
-            if st.button("🏠 Home", key="payment_success_home"):
-                CustomerServicePortal.clear_state()
-                st.session_state.page = "🛠️ Service Vehicle Form"
-                st.rerun()
-        with col2:
-            if st.button("🔙 Go Back", key="payment_success_goback"):
-                CustomerServicePortal.clear_state()
-                st.rerun()
-        with col3:
-            if st.button("🚪 Logout", key="payment_success_logout"):
-                CustomerServicePortal.clear_state()
-                st.session_state.page = "login"
-                st.session_state.logged_in = False
-                st.session_state.email = ""
-                st.session_state.user_type = ""
-                display_alert("👋 Successfully logged out! See you soon!", "success")
-                st.rerun()
-
-    @staticmethod
-    def render_service_form(user):
-        st.header("🛠️ Request a Vehicle Service")
-
-        if st.session_state.get('payment_completed', False):
-            st.success("✅ Payment Completed Successfully! Your service booking has been confirmed and payment has been processed.")
-            st.info("You can now make a new booking below.")
-            st.session_state['payment_completed'] = False
-
-        if st.session_state.get('booking_completed', False) and st.session_state.get('payment_pending', False):
-            service_id = st.session_state.get('current_service_id')
-            selected_services = st.session_state.get('selected_services', [])
-            total_cost = st.session_state.get('total_cost', 0)
-            CustomerServicePortal.render_booking_summary(service_id, selected_services, total_cost)
-            col1, col2, col3 = st.columns([1, 2, 1])
-            with col2:
-                if st.button("💳 Proceed to Payment", key="btn_proceed_payment"):
-                    st.session_state['show_payment_page'] = True
-                    st.session_state['pending_service_id'] = service_id
-                    st.session_state['booking_completed'] = False
-                    st.session_state['payment_pending'] = False
-                    st.rerun()
-            return
-
-        st.markdown("---")
-        col1, col2 = st.columns(2)
-        with col1:
-            vehicle_type = st.selectbox("🚗 Vehicle Type", list(VEHICLE_CONFIG.keys()), key='select_vehicle_type')
-            vehicle_brand = st.selectbox("🏭 Vehicle Brand", VEHICLE_CONFIG[vehicle_type]["brands"], key='select_vehicle_brand')
-            vehicle_model = st.selectbox("🏷️ Vehicle Model", VEHICLE_CONFIG[vehicle_type]["models"][vehicle_brand], key='select_vehicle_model')
-            vehicle_no = st.text_input("🔢 Vehicle Number", placeholder="Enter vehicle number", key='input_vehicle_no')
-            service_date = st.date_input("📅 Preferred Service Date", key='input_service_date')
-        with col2:
-            pickup_required = st.radio("🚚 Pickup Required?", ["Yes", "No"], horizontal=True, key='input_pickup_required')
-            selected_services = st.multiselect(
-                "⚙️ Select Services", VEHICLE_CONFIG[vehicle_type]["services"], key='input_selected_services'
-            )
-            pickup_address = ""
-            if pickup_required == "Yes":
-                pickup_address = st.text_area("📍 Pickup Address", placeholder="Enter your pickup address", key='input_pickup_address')
-            description = st.text_area("📝 Service Description", placeholder="Describe the issue or service required", key='input_description')
-
-        if st.button("🎉 Confirm Booking", key="btn_confirm_booking"):
-            errors = CustomerServicePortal.validate_form(vehicle_no, description, selected_services, pickup_required, pickup_address)
-            if errors:
-                display_alert("⚠️ Please fix the following errors:\n• " + "\n• ".join(errors), "error")
+        if choice == "Add Vehicle":
+            self.add_vehicle_page()
+        elif choice == "Book Service":
+            if st.session_state.get("booking_service_id"):
+                self.show_service_detail_and_payment(st.session_state["booking_service_id"])
             else:
-                vehicle = Vehicle(vehicle_type, vehicle_brand, vehicle_model, vehicle_no)
-                CustomerServicePortal.process_booking(
-                    user, vehicle, selected_services, description, pickup_required, pickup_address, service_date
-                )
+                self.book_service_page()
+        elif choice == "Service History":
+            self.service_history_page()
+        elif choice == "My Vehicles":
+            self.my_vehicles_page()
 
-    @staticmethod
-    def render_service_history(user):
-        st.header("📋 Your Service History")
-        services = fetch_all_services()
-        user_services = [s for s in services if s["customer_email"] == user.email]
-        if not user_services:
-            st.info("📋 No service requests found. Create your first service request!")
-            return
-        st.write(f"### Found {len(user_services)} service request(s)")
-        for service in user_services:
-            CustomerServicePortal.render_service_card(service)
+        st.sidebar.markdown("---")
+        if st.sidebar.button("🚪 Logout"):
+            st.session_state.clear()
+            st.session_state.page = "login"
+            st.rerun()
 
-    @staticmethod
-    def render_service_card(service):
-        total_cost = service["base_cost"]
-        status_colors = {
-            "Pending": "🟡",
-            "In Progress": "🟠",
-            "Completed": "🟢",
-            "Cancelled": "🔴"
-        }
-        status_icon = status_colors.get(service["status"], "🟡")
-        title = f"{status_icon} #{service['service_id']} — {service['vehicle_no']} — {service['status']} — ₹{total_cost}"
-        with st.expander(title, expanded=False):
-            col1, col2 = st.columns(2)
-            with col1:
-                st.subheader("🚗 Vehicle Info")
-                st.write(f"**Type:** {service['vehicle_type']}")
-                st.write(f"**Brand:** {service['vehicle_brand']}")
-                st.write(f"**Model:** {service['vehicle_model']}")
-                st.write(f"**Number:** {service['vehicle_no']}")
-                st.subheader("📝 Service Description")
-                st.write(service.get('description', 'No description provided'))
-                st.subheader("🚚 Pickup Info")
-                st.write(f"**Pickup Required:** {service['pickup_required']}")
-                if service.get('pickup_address'):
-                    st.write(f"**Pickup Address:** {service['pickup_address']}")
-            with col2:
-                st.subheader("⏰ Timeline & Status")
-                st.write(f"**Requested:** {service['request_date']}")
-                st.write(f"**Service Date:** {service['service_date']}")
-                st.write(f"**Status:** {service['status']}")
-                st.write(f"**Mechanic:** {service.get('assigned_mechanic', 'Not assigned')}")
-                if service.get('work_done'):
-                    st.subheader("🔧 Work Done")
-                    st.write(service['work_done'])
-                st.subheader("⚙️ Services Requested")
-                for svc in service["service_types"]:
-                    price = SERVICE_PRICES.get(svc, 0)
-                    st.write(f"- **{svc}:** ₹{price}")
-            st.markdown("---")
-            col1, col2, _ = st.columns([2, 2, 1])
-            with col1:
-                st.subheader("💰 Billing Details")
-                st.write(f"Total Cost: ₹{total_cost}")
-            with col2:
-                st.subheader("💳 Payment Status")
-                if service['payment_status'] == "Pending" and total_cost > 0:
-                    st.warning(f"⏳ Payment Pending — ₹{total_cost}")
-                elif service['payment_status'] == "Done":
-                    st.success(f"✅ Payment Complete — ₹{total_cost}")
+    def add_vehicle_page(self):
+        st.header("➕ Add New Vehicle")
+        vtype = st.selectbox("Select Vehicle Type", list(VEHICLE_CONFIG.keys()))
+        brand = st.selectbox("Select Brand", VEHICLE_CONFIG[vtype]["brands"])
+        model = st.selectbox("Select Model", VEHICLE_CONFIG[vtype]["models"][brand])
+        vehicle_no = st.text_input("Vehicle Number")
+
+        if st.button("Add Vehicle"):
+            errors = validate_vehicle_form(vehicle_no, vtype, brand, model)
+            if errors:
+                for e in errors:
+                    display_alert(e, "error")
+            else:
+                vehicle_data = {
+                    "user_id": self.user.id,
+                    "vehicle_type": vtype,
+                    "vehicle_brand": brand,
+                    "vehicle_model": model,
+                    "vehicle_no": vehicle_no.strip().upper(),
+                }
+                vid = add_vehicle(vehicle_data)
+                if vid:
+                    display_alert("🚗 Vehicle added successfully!", "success")
                 else:
-                    st.info("⚪ No Payment Due")
+                    display_alert("❌ Failed to add vehicle. Vehicle number might already exist.", "error")
 
-    @staticmethod
-    def render_logout_section():
-        st.markdown("---")
-        col1, col2, col3 = st.columns([1, 1, 1])
-        with col2:
-            if st.button("🚪 Logout", key="logout_main_section"):
-                st.session_state.page = "login"
-                st.session_state.logged_in = False
-                st.session_state.email = ""
-                st.session_state.user_type = ""
-                CustomerServicePortal.clear_state()
-                display_alert("👋 Successfully logged out! See you soon!", "success")
+    def book_service_page(self):
+        st.header("🛠️ Book a Service")
+        vehicles = fetch_vehicles_by_user(self.user.id)
+
+        if not vehicles:
+            st.info("You have no vehicles added. Please add a vehicle first.")
+            return
+
+        vehicle_map = {
+            f"{v['vehicle_type']}-{v['vehicle_brand']}-{v['vehicle_model']}-({v['vehicle_no']})": v
+            for v in vehicles
+        }
+        vehicle_choice = st.selectbox("Select Vehicle", list(vehicle_map.keys()))
+        vehicle = vehicle_map[vehicle_choice]
+
+        vtype = vehicle["vehicle_type"]
+        available_services = VEHICLE_CONFIG.get(vtype, {}).get("services", [])
+        selected_services = st.multiselect("Select Service Types", available_services)
+        service_date = st.date_input("Preferred Service Date", datetime.today())
+        pickup_required = st.radio("Pickup Required?", ["Yes", "No"], horizontal=True)
+        pickup_address = ""
+        if pickup_required == "Yes":
+            pickup_address = st.text_area("Pickup Address")
+
+        description = st.text_area("Service Description","Empty")
+
+        if st.button("Submit Service Request"):
+            errors = validate_service_booking_form(
+                vehicle, selected_services, description, pickup_required, pickup_address
+            )
+            if errors:
+                for e in errors:
+                    display_alert(e, "error")
+                return
+
+            base_cost = calculate_cost(selected_services)
+            new_service = {
+                "customer_id": self.user.id,
+                "vehicle_id": vehicle["vehicle_id"],
+                "service_types": selected_services,
+                "description": description.strip(),
+                "pickup_required": pickup_required,
+                "pickup_address": pickup_address.strip() if pickup_required == "Yes" else None,
+                "service_date": service_date.strftime("%Y-%m-%d"),
+                "status": "Pending",
+                "payment_status": "Pending",
+                "base_cost": base_cost,
+                "extra_charges": 0,
+                "charge_description": "",
+                "work_done": "",
+                "request_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            }
+            service_id = save_service(new_service)
+
+            if service_id:
+                st.session_state["booking_service_id"] = service_id
+                st.session_state["booking_selected_services"] = selected_services
+                st.session_state["booking_total_cost"] = base_cost
+                st.session_state["booking_vehicle_no"] = vehicle["vehicle_no"]
+                st.session_state["booking_vehicle_type"] = vehicle["vehicle_type"]
+                st.session_state["booking_vehicle_brand"] = vehicle["vehicle_brand"]
+                st.session_state["booking_vehicle_model"] = vehicle["vehicle_model"]
+                st.session_state["booking_service_date"] = service_date.strftime("%Y-%m-%d")
+                st.session_state["booking_description"] = description.strip()
+                display_alert(f"🎉 Service request #{service_id} submitted successfully!", "success")
                 st.rerun()
+            else:
+                display_alert("❌ Service booking failed.", "error")
 
-# --- Main entry point ---
+    def show_service_detail_and_payment(self, service_id):
+        service = get_service_by_id(service_id)
+        if not service:
+            st.error("❌ Service record not found.")
+            del st.session_state["booking_service_id"]
+            return
+        base_c = service.get("base_cost", 0)
+        st.subheader(f"🎉 Booking Confirmed!")
+        st.subheader(f"Service ID: #{service_id}")
+        st.write(
+            f"**Vehicle:** {service.get('vehicle_type', '')} - {service.get('vehicle_brand', '')} "
+            f" - {service.get('vehicle_model', '')} - ({service.get('vehicle_no', '')})"
+        )
+        st.write(f"**Service Date:** {service.get('service_date')}")
+        st.write(f"**Services Requested:** {', '.join(service.get('service_types', []))}")
+        st.write(f"**Description:** {service.get('description')}")
+        st.write(f"**Pickup Required:** {service.get('pickup_required')}")
+        if service.get("pickup_address"):
+            st.write(f"**Pickup Address:** {service.get('pickup_address')}")
+        st.write(f"**Base Cost:** ₹{base_c}")
+        st.write(f"**Payment Status:** {service.get('payment_status')}")
+
+        if st.button(f"💳 Pay ₹{base_c} Now"):
+            success = update_payment_status(service_id, base_c)
+            if success:
+                display_alert("✅ Payment successful!", "success")
+                del st.session_state["booking_service_id"]
+                st.rerun()
+            else:
+                    display_alert("❌ Payment failed. Please try again.", "error")
+
+
+        if st.button("🔙 Back"):
+            del st.session_state["booking_service_id"]
+            st.rerun()
+
+    def service_history_page(self):
+        st.header("📋 My Service History")
+        services = get_services_by_customer_id(self.user.id)
+
+        if not services:
+            st.info("No service history found.")
+            return
+
+        for s in services:
+            total_cost = s.get("base_cost", 0) + s.get("extra_charges", 0)
+            payment_status = s.get("payment_status", "Pending")
+            remain_amt = total_cost - s.get("Paid", 0)
+            expanded_title = (
+                f"Service #{s['service_id']} - {s.get('vehicle_no', 'N/A')} "
+                f"- Status: {s.get('status', 'Unknown')} - "
+                f"Payment: {payment_status} - Total: ₹{total_cost}"
+            )
+            with st.expander(expanded_title, expanded=False):
+                st.write(f"**Service Types:** {', '.join(s.get('service_types', []))}")
+                st.write(
+                    f"**Vehicle:** {s.get('vehicle_type', '')} - {s.get('vehicle_brand', '')} "
+                    f" - {s.get('vehicle_model', '')} - ({s.get('vehicle_no', '')})"
+                )
+                st.write(f"**Description:** {s.get('description')}")
+                st.write(f"**Pickup Required:** {s.get('pickup_required')}")
+                if s.get("pickup_address"):
+                    st.write(f"**Pickup Address:** {s.get('pickup_address')}")
+                st.write(f"**Service Date:** {s.get('service_date')}")
+                st.write(f"**Status:** {s.get('status')}")
+                st.write(f"**Assigned Mechanic:** {s.get('assigned_mechanic') or 'Not assigned'}")
+                st.write(f"**Work Done:** {s.get('work_done') or 'Not updated'}")
+                st.write(f"**Extra charge reason:** {s.get('charge_description')}")
+                st.write(f"**Total Cost:** ₹{total_cost}")
+                st.write(f"**Paid Amount:** ₹{s.get('Paid')}")
+
+                if payment_status == "Pending":
+                    if st.button(f"💳 Pay ₹{remain_amt} Now", key=f"pay_{s['service_id']}"):
+                        if update_payment_status(s["service_id"], total_cost):
+                            display_alert("✅ Payment successful!", "success")
+                            st.rerun()
+                        else:
+                            display_alert("❌ Payment failed. Please try again.", "error")
+                elif payment_status == "Done":
+                    st.success("✅ Payment Completed")
+
+    def my_vehicles_page(self):
+        st.header("🚗 My Vehicles")
+        vehicles = fetch_vehicles_by_user(self.user.id)
+
+        if not vehicles:
+            st.info("You have no vehicles registered.")
+            return
+        for v in vehicles:
+            st.write(f"- {v['vehicle_type']} - {v['vehicle_brand']} - {v['vehicle_model']} - {v['vehicle_no']}")
+
+
 def main():
     inject_global_css()
     users = fetch_all_users()
-    email = st.session_state.get("email", "guest@example.com")
+    email = st.session_state.get("email")
     user_data = next((u for u in users if u["email"] == email), None)
-    user = User(user_data) if user_data else User({})
-    if st.session_state.get('show_payment_page', False):
-        CustomerServicePortal.render_payment_success_page()
+    if not user_data:
+        st.error("User not found. Please log in again.")
         return
-    st.title("🚗 Vehicle Service Dashboard")
-    menu = st.sidebar.radio("Choose a section:", ["Book Service", "Service History"])
-    if menu == "Book Service":
-        CustomerServicePortal.render_service_form(user)
-    elif menu == "Service History":
-        CustomerServicePortal.render_service_history(user)
-    CustomerServicePortal.render_logout_section()
+    user = User(user_data)
 
+    dashboard = CustomerDashboard(user)
+    dashboard.run()
+
+
+if __name__ == "__main__":
+    main()

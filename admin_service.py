@@ -1,37 +1,32 @@
 import streamlit as st
 from datetime import datetime, date
 from utils import inject_global_css
-from database import fetch_all_services, fetch_all_users, update_service
+from database import (
+    fetch_all_services,
+    fetch_all_mechanics,
+    update_service,
+    fetch_all_users,
+)
 
-# ----------- HELPER FUNCTIONS -----------
-
-def safe_get(data_dict, key, default="N/A"):
-    """Safely get value from dictionary with fallback"""
-    if not data_dict:
-        return default
-    value = data_dict.get(key, default)
-    return str(value) if value is not None else default
+# --- Utility Functions ---
 
 def display_service_type(service_dict):
-    """Safely display service type with fallbacks"""
+    """Format service types for display."""
     if not service_dict:
         return "N/A"
-    service_type = service_dict.get('service_type')
     service_types = service_dict.get('service_types')
-    if service_type:
-        return str(service_type)
-    elif service_types:
+    if service_types:
         if isinstance(service_types, list):
             return ', '.join(str(x) for x in service_types if x)
         else:
             return str(service_types)
     return "N/A"
 
-# ----------- DATA MODEL CLASSES -----------
+# --- Data Classes ---
 
 class Service:
     def __init__(self, data):
-        self.data = data if data else {}
+        self.data = data or {}
 
     @property
     def service_id(self):
@@ -46,252 +41,215 @@ class Service:
         self.data['status'] = val
 
     @property
-    def request_date(self):
-        return self.data.get('request_date', '')
-
-    @property
     def payment_status(self):
         return self.data.get('payment_status', 'Pending')
 
-    @payment_status.setter
-    def payment_status(self, val):
-        self.data['payment_status'] = val
+    @property
+    def assigned_mechanic(self):
+        return self.data.get('assigned_mechanic')
+
+    @assigned_mechanic.setter
+    def assigned_mechanic(self, val):
+        self.data['assigned_mechanic'] = val
+
+    @property
+    def extra_charges(self):
+        return self.data.get('extra_charges', 0) or 0
+
+    @extra_charges.setter
+    def extra_charges(self, val):
+        self.data['extra_charges'] = val
+
+    @property
+    def charge_description(self):
+        return self.data.get('charge_description', '')
+
+    @charge_description.setter
+    def charge_description(self, val):
+        self.data['charge_description'] = val
 
     def update_status(self, new_status):
         self.status = new_status
 
-    def assign_mechanic(self, mechanic_name):
-        self.data['assigned_mechanic'] = mechanic_name
+    def assign_mechanic(self, mechanic_id):
+        self.assigned_mechanic = mechanic_id
 
-    def add_extra_charges(self, extra_charges, desc):
-        self.data['extra_charges'] = extra_charges
-        self.data['charge_description'] = desc
+    def add_extra_charges(self, extra_charges, charge_desc):
+        self.extra_charges = extra_charges
+        self.charge_description = charge_desc
+        base_cost = self.data.get('base_cost', 0) or 0
+        total_cost = base_cost + extra_charges
+        paid_amt = self.data.get('Paid',0) or 0
+        if self.payment_status == "Done" and total_cost > paid_amt:
+            self.data['payment_status'] = 'Pending'
 
     def save_work_description(self, description):
         self.data['work_done'] = description
 
-    def to_dict(self):
-        return self.data
+    def to_update_dict(self):
+        """Return only updatable fields."""
+        keys = [
+            'status', 'assigned_mechanic', 'extra_charges', 
+            'charge_description', 'work_done', 'description', 'payment_status'
+        ]
+        return {k: self.data[k] for k in keys if k in self.data}
 
-    def matches_vehicle_number(self, vehicle_number):
-        if not vehicle_number:
-            return True
-        vehicle_no = self.data.get('vehicle_no', '')
-        if not vehicle_no:
-            return False
-        return vehicle_number.lower() in str(vehicle_no).lower()
-
-    def matches_status(self, status_list):
-        if not status_list or "All" in status_list:
-            return True
-        return self.status in status_list
-
-    def date_in_range(self, start_date, end_date):
-        try:
-            request_date = self.request_date
-            if not request_date:
-                return True  # Include services without dates
-            if isinstance(request_date, str):
-                try:
-                    service_date = datetime.strptime(request_date.split()[0], "%Y-%m-%d").date()
-                except ValueError:
-                    try:
-                        service_date = datetime.strptime(request_date[:10], "%Y-%m-%d").date()
-                    except ValueError:
-                        return True
-            elif hasattr(request_date, 'date'):
-                service_date = request_date.date()
-            else:
-                service_date = request_date
-            return start_date <= service_date <= end_date
-        except Exception as e:
-            st.write(f"DEBUG: Date parsing error for service {self.service_id}: {e}")
-            return True  # Include service if date parsing fails
+# --- Managers ---
 
 class ServiceManager:
     def __init__(self):
-        self.services = []
         self.reload_services()
 
     def reload_services(self):
         try:
             raw_services = fetch_all_services()
-            self.services = [Service(data) for data in raw_services if data]
+            self.services = [Service(s) for s in raw_services if s]
         except Exception as e:
-            st.error(f"❌ ERROR: Failed to reload services: {e}")
+            st.error(f"Failed to reload services: {e}")
             self.services = []
 
     def save(self):
-        # Save each service individually to the DB
         try:
             for srv in self.services:
                 if srv.service_id:
-                    update_service(srv.service_id, srv.to_dict())
+                    updates = srv.to_update_dict()
+                    if updates:
+                        update_service(srv.service_id, updates)
         except Exception as e:
-            st.error(f"❌ ERROR: Failed to save services: {e}")
+            st.error(f"Failed to save services: {e}")
 
     def get_by_id(self, service_id):
-        # Ensure comparison as str for consistency
         return next((srv for srv in self.services if str(srv.service_id) == str(service_id)), None)
-
-    def filter(self, start_date, end_date, status_filter, vehicle_number):
-        try:
-            results = self.services.copy()
-            date_filtered = []
-            for srv in results:
-                if srv.date_in_range(start_date, end_date):
-                    date_filtered.append(srv)
-            status_filtered = []
-            for srv in date_filtered:
-                if srv.matches_status(status_filter):
-                    status_filtered.append(srv)
-            if vehicle_number:
-                vehicle_filtered = []
-                for srv in status_filtered:
-                    if srv.matches_vehicle_number(vehicle_number):
-                        vehicle_filtered.append(srv)
-                results = vehicle_filtered
-            else:
-                results = status_filtered
-            return results
-        except Exception as e:
-            st.error(f"❌ ERROR: Failed to filter services: {e}")
-            return []
 
 class UserManager:
     def __init__(self):
         try:
             self.users = fetch_all_users()
         except Exception as e:
-            st.error(f"❌ ERROR: Failed to load users: {e}")
+            st.error(f"Failed to load users: {e}")
             self.users = []
 
     def get_user_by_email(self, email):
         return next((u for u in self.users if u.get('email') == email), None)
 
-# ----------- DASHBOARD CLASS -----------
+# --- Dashboard Class ---
 
 class AdminDashboard:
     def __init__(self):
         self.service_manager = ServiceManager()
         self.user_manager = UserManager()
+        self.mechanics = fetch_all_mechanics()
+        self.mechanic_options = {m['mechanic_id']: m['mechanic_name'] for m in self.mechanics}
 
     def run(self):
         inject_global_css()
         st.title("⚙️ Admin Dashboard")
+        self.welcome_message()
+        if 'current_service' not in st.session_state:
+            st.session_state['current_service'] = None
+        if st.session_state['current_service']:
+            self.show_service_detail_page(st.session_state['current_service'])
+            return
+        if st.button("🔄 Reload Services"):
+            self.service_manager.reload_services()
+            st.rerun()
+        self.show_filters_ui()
+        self.show_statistics_and_logout()
+
+    def welcome_message(self):
         admin_email = st.session_state.get("email", "Admin")
         admin_user = self.user_manager.get_user_by_email(admin_email)
         admin_name = admin_user.get("full_name", admin_email) if admin_user else admin_email
         st.subheader(f"👋 Welcome back, {admin_name}")
-        st.caption("Ready to manage your services today?")
-
-        if 'current_service' not in st.session_state:
-            st.session_state['current_service'] = None
-
-        if st.session_state['current_service']:
-            self.show_service_detail_page(st.session_state['current_service'])
-            return
-
-        if st.button("🔄 Reload Services"):
-            self.service_manager.reload_services()
-            st.rerun()
-
-        self.show_filters_ui()
-        self.show_statistics_and_logout()
 
     def show_filters_ui(self):
         st.header("🔍 Filter Services")
+        total_services = len(self.service_manager.services)
+        st.info(f"📊 Total services in system: {total_services}")
         col1, col2, col3, col4 = st.columns(4)
-
         with col1:
-            st.caption("📅 Start Date")
             default_start = date.today().replace(day=1)
-            if default_start.month > 6:
-                default_start = default_start.replace(month=default_start.month - 6)
-            else:
-                default_start = default_start.replace(year=default_start.year - 1, month=default_start.month + 6)
-            start_date = st.date_input("Start Date", value=default_start, label_visibility="collapsed")
-
+            start_date = st.date_input("Start Date", value=default_start)
         with col2:
-            st.caption("📅 End Date")
-            end_date = st.date_input("End Date", value=date.today(), label_visibility="collapsed")
-
+            end_date = st.date_input("End Date", value=date.today())
         with col3:
-            st.caption("📊 Filter by Status")
             status_filter = st.multiselect(
-                "Filter by Status",
+                "Status Filter",
                 ["All", "Pending", "In Progress", "Completed", "Cancelled"],
-                default=["All"],
-                label_visibility="collapsed"
+                default=["All"]
             )
-
         with col4:
-            st.caption("🔍 Search by Vehicle Number")
             vehicle_number_filter = st.text_input(
-                "Search by Vehicle Number",
-                placeholder="Enter vehicle number...",
-                help="Search for services by vehicle number (partial match)",
-                label_visibility="collapsed"
+                "Vehicle Number Filter", placeholder="Type vehicle no..."
             )
+        filtered = self.filter_services(start_date, end_date, status_filter, vehicle_number_filter)
+        self.show_services_list(filtered)
 
-        if vehicle_number_filter:
-            st.write(f"🔍 Vehicle number filter: '{vehicle_number_filter}'")
-
-        filtered_services = self.service_manager.filter(
-            start_date, end_date, status_filter, vehicle_number_filter
-        )
-        self.show_services_list(filtered_services)
-
-    def show_services_list(self, filtered_services):
-        if not filtered_services:
-            st.warning("❌ No services found for the selected filters.")
-            st.info("💡 Try adjusting your date range or status filters.")
-            return
-
-        st.success(f"✅ Found **{len(filtered_services)}** services")
-        for i, srv in enumerate(filtered_services):
+    def filter_services(self, start_date, end_date, status_filter, vehicle_number_filter):
+        def date_in_range(service):
             try:
-                d = srv.data
-                if not d:
-                    continue
-                customer_name = safe_get(d, 'customer_name', 'Unknown')
-                customer_email = safe_get(d, 'customer_email')
-                customer_phone = safe_get(d, 'customer_phone')
-                service_id = safe_get(d, 'service_id', f'temp_{i}')
-                vehicle_no = safe_get(d, 'vehicle_no')
-                status = safe_get(d, 'status', 'Pending')
+                s_date = service.data.get('request_date')
+                if not s_date:
+                    return True
+                s_date = datetime.strptime(str(s_date), "%Y-%m-%d %H:%M:%S").date()
+                return start_date <= s_date <= end_date
+            except:
+                return True
 
-                with st.expander(
-                    f"🔧 Service #{service_id} - {customer_name} - {vehicle_no} - {status}",
-                    expanded=False
-                ):
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        st.write(f"**👤 Customer:** {customer_name}")
-                        st.write(f"**📧 Email:** {customer_email}")
-                        st.write(f"**📱 Phone:** {customer_phone}")
-                        st.write(f"**🚗 Vehicle:** {safe_get(d, 'vehicle_type')} {safe_get(d, 'vehicle_brand')} {safe_get(d, 'vehicle_model')}")
-                        st.write(f"**🔢 Vehicle No:** {vehicle_no}")
-                        st.write(f"**🔧 Service Type:** {display_service_type(d)}")
-                    with col2:
-                        st.write(f"**📅 Service Date:** {safe_get(d, 'service_date')}")
-                        st.write(f"**📅 Request Date:** {safe_get(d, 'request_date')}")
-                        st.write(f"**📊 Status:** {status}")
-                        st.write(f"**👨🔧 Mechanic:** {safe_get(d, 'assigned_mechanic', 'Not Assigned')}")
-                    with col3:
-                        st.write(f"**💳 Payment:** {safe_get(d, 'payment_status', 'Pending')}")
-                        st.write(f"**🚚 Pickup:** {safe_get(d, 'pickup_required')}")
-                        base_cost = d.get('base_cost', 0) or 0
-                        extra_charges = d.get('extra_charges', 0) or 0
-                        total_cost = base_cost + extra_charges
-                        st.write(f"**💰 Total Cost:** ₹{total_cost}")
+        def status_match(service):
+            if "All" in status_filter or not status_filter:
+                return True
+            return service.status in status_filter
 
-                    if st.button("👀 View Details", key=f"view_{service_id}_{i}"):
-                        st.session_state['current_service'] = service_id
-                        st.rerun()
-            except Exception as e:
-                st.error(f"❌ Error displaying service {i}: {e}")
-                continue
+        def vehicle_no_match(service):
+            if not vehicle_number_filter:
+                return True
+            vehicle_no = service.data.get('vehicle_no', '').lower()
+            return vehicle_number_filter.lower() in vehicle_no
+
+        return [srv for srv in self.service_manager.services if date_in_range(srv) and status_match(srv) and vehicle_no_match(srv)]
+
+    def show_services_list(self, services):
+        if not services:
+            st.warning("❌ No services found for selected filters.")
+            return
+        st.success(f"✅ Found {len(services)} services")
+        for i, srv in enumerate(services):
+            d = srv.data
+            service_id = d.get('service_id', f'temp_{i}')
+            title = (
+                f"**🔧 Service #{service_id} - {d.get('customer_name', 'Unknown')} - {d.get('vehicle_type', 'N/A')} - "
+                f"{d.get('vehicle_no', 'N/A')} - {srv.status}**"
+            )
+            with st.expander(title, expanded=False):
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.write(f"**Customer:** {d.get('customer_name', 'N/A')}")
+                    st.write(f"**Email:** {d.get('customer_email', 'N/A')}")
+                    st.write(f"**Phone:** {d.get('customer_phone', 'N/A')}")
+                    st.write(f"**Vehicle:** {d.get('vehicle_type', 'N/A')} - {d.get('vehicle_brand', 'N/A')} - {d.get('vehicle_model', 'N/A')}")
+                    st.write(f"**Vehicle Number:** {d.get('vehicle_no', 'N/A')}")
+                    st.write(f"**Service Types:** {display_service_type(d)}")
+                with col2:
+                    st.write(f"**Service Date:** {d.get('service_date', 'N/A')}")
+                    st.write(f"**Request Date:** {d.get('request_date', 'N/A')}")
+                    st.write(f"**Status:** {srv.status}")
+                    mech_id = d.get('assigned_mechanic')
+                    mech_name = self.mechanic_options.get(mech_id, "Not Assigned")
+                    st.write(f"**Assigned Mechanic:** {mech_name}")
+                with col3:
+                    base = d.get('base_cost', 0) or 0
+                    extra = d.get('extra_charges', 0) or 0
+                    paid_amt = d.get('Paid', 0) or 0
+                    total = base + extra
+                    st.write(f"**Base Cost:** ₹{base}")
+                    st.write(f"**Extra Charges:** ₹{extra}")
+                    st.write(f"**Total Cost:** ₹{total}")
+                    st.write(f"**Paid Amount:** ₹{paid_amt}")
+                    st.write(f"**Payment Status:** {d.get('payment_status', 'Pending')}")
+                if st.button("👀 View Details", key=f"view_{service_id}_{i}"):
+                    st.session_state['current_service'] = service_id
+                    st.rerun()
 
     def show_service_detail_page(self, service_id):
         service = self.service_manager.get_by_id(service_id)
@@ -301,170 +259,133 @@ class AdminDashboard:
                 st.session_state['current_service'] = None
                 st.rerun()
             return
-
         d = service.data
+
         st.title("🔧 Service Details")
-        st.caption(f"Service ID: {service_id}")
-        if st.button("← Back to Dashboard", key="back_button"):
+        st.write(f"Service ID: {service_id}")
+        if st.button("← Back", key="back_button"):
             st.session_state['current_service'] = None
             st.rerun()
 
-        customer_name = safe_get(d, 'customer_name', 'Unknown')
-        customer_email = safe_get(d, 'customer_email')
-        customer_phone = safe_get(d, 'customer_phone')
         col1, col2 = st.columns(2)
         with col1:
             st.subheader("👤 Customer Information")
-            st.write(f"**🧑 Customer:** {customer_name}")
-            st.write(f"**📧 Email:** {customer_email}")
-            st.write(f"**📱 Phone:** {customer_phone}")
+            st.write(f"**Customer:** {d.get('customer_name', 'N/A')}")
+            st.write(f"**Email:** {d.get('customer_email', 'N/A')}")
+            st.write(f"**Phone:** {d.get('customer_phone', 'N/A')}")
+            st.write(f"**Pickup Required:** {d.get('pickup_required')}")
+            if d.get("pickup_address"):
+                st.write(f"**Pickup Address:** {d.get('pickup_address')}")
+
+        with col2:
             st.subheader("🚗 Vehicle Information")
-            st.write(f"**🚙 Vehicle Type:** {safe_get(d, 'vehicle_type')}")
-            st.write(f"**🏭 Brand:** {safe_get(d, 'vehicle_brand')}")
-            st.write(f"**🚗 Model:** {safe_get(d, 'vehicle_model')}")
-            st.write(f"**🔢 Vehicle No:** {safe_get(d, 'vehicle_no')}")
-            st.write(f"**🔧 Service Type:** {display_service_type(d)}")
-            st.write(f"**📝 Description:** {safe_get(d, 'description', '')}")
-        with col2:
-            st.subheader("📊 Service Status")
-            st.write(f"**📈 Status:** {safe_get(d, 'status', 'Pending')}")
-            st.write(f"**💳 Payment:** {safe_get(d, 'payment_status', 'Pending')}")
-            st.write(f"**🔧 Assigned Mechanic:** {safe_get(d, 'assigned_mechanic', 'Not Assigned')}")
-            st.subheader("💰 Cost Information")
-            base_cost = d.get('base_cost', 0) or 0
-            extra_charges = d.get('extra_charges', 0) or 0
-            total_cost = base_cost + extra_charges
-            st.write(f"**💵 Base Cost:** ₹{base_cost}")
-            st.write(f"**➕ Extra Charges:** ₹{extra_charges}")
-            st.write(f"**💰 Total Cost:** ₹{total_cost}")
+            st.write(f"**Type:** {d.get('vehicle_type', 'N/A')}")
+            st.write(f"**Brand:** {d.get('vehicle_brand', 'N/A')}")
+            st.write(f"**Model:** {d.get('vehicle_model', 'N/A')}")
+            st.write(f"**Vehicle No:** {d.get('vehicle_no', 'N/A')}")
+            st.write(f"**Service Types:** {display_service_type(d)}")
+            st.write(f"**Description:** {d.get('description', '')}")
 
-        st.markdown("---")
-        col1, col2, col3 = st.columns(3)
+        col1, col2 = st.columns(2)
         with col1:
-            st.markdown("**📈 Update Status**")
+            st.subheader("📊 Status")
             status_options = ["Pending", "In Progress", "Completed", "Cancelled"]
-            current_status = d.get('status', 'Pending')
-            try:
-                current_index = status_options.index(current_status)
-            except ValueError:
-                current_index = 0
-            new_status = st.selectbox("Service Status", status_options, index=current_index)
-            if st.button("🔄 Update Status"):
-                try:
-                    service.update_status(new_status)
-                    self.service_manager.save()
-                    st.success("✅ Status updated!")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"❌ Failed to update status: {e}")
-        with col2:
-            st.markdown("**🔧 Assign Mechanic**")
-            mechanic_name = st.text_input("Mechanic Name", value=safe_get(d, 'assigned_mechanic', ''))
-            if st.button("👨🔧 Assign Mechanic"):
-                try:
-                    service.assign_mechanic(mechanic_name)
-                    self.service_manager.save()
-                    st.success("✅ Mechanic assigned!")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"❌ Failed to assign mechanic: {e}")
-        with col3:
-            st.markdown("**💸 Add Extra Charges**")
-            new_extra_charge = st.number_input("Extra Charges (₹)", min_value=0, value=extra_charges)
-            charge_description = st.text_input("Charge Description", value=safe_get(d, 'charge_description', ''))
-            if st.button("💰 Update Extra Charges"):
-                try:
-                    service.add_extra_charges(new_extra_charge, charge_description)
-                    if 'base_cost' not in d:
-                        d['base_cost'] = 0
-                    self.service_manager.save()
-                    st.success("✅ Extra charges updated!")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"❌ Failed to update charges: {e}")
-
-        st.markdown("---")
-        st.subheader("📝 Work Description")
-        current_work_done = safe_get(d, 'work_done', '')
-        work_description = st.text_area("Work Done Description", value=current_work_done, height=100,
-                                        help="Describe what work was performed")
-        if st.button("💾 Save Work Description"):
-            try:
-                service.save_work_description(work_description)
+            curr_status = service.status
+            new_status = st.selectbox(
+                "Service Status",
+                status_options,
+                index=status_options.index(curr_status) if curr_status in status_options else 0
+            )
+            if st.button("Update Status"):
+                service.update_status(new_status)
                 self.service_manager.save()
-                st.success("✅ Work description saved!")
+                st.success("Status updated successfully.")
                 st.rerun()
-            except Exception as e:
-                st.error(f"❌ Failed to save work description: {e}")
+
+        with col2:
+            st.subheader("🔧 Assign Mechanic")
+            mech_keys = [None] + list(self.mechanic_options.keys())
+
+            def mech_name_or_none(mid):
+                return "None" if mid is None else self.mechanic_options.get(mid, "Unknown")
+
+            curr_mech_id = service.assigned_mechanic
+            mech_default = 0
+            if curr_mech_id in self.mechanic_options:
+                mech_default = mech_keys.index(curr_mech_id)
+            selected_mech = st.selectbox(
+                "Mechanic", mech_keys, format_func=mech_name_or_none, index=mech_default
+            )
+            if st.button("Assign Mechanic"):
+                service.assign_mechanic(selected_mech)
+                self.service_manager.save()
+                st.success("Mechanic assigned successfully")
+                st.rerun()
+
+        col1, col2 = st.columns(2)
+        with col1:
+            st.subheader("💸 Extra Charges")
+            new_extra = st.number_input(
+                "Extra Charges (₹)", min_value=0, value=service.extra_charges
+            )
+            charge_desc = st.text_input("Description for Extra Charges", value=service.charge_description)
+            if st.button("Update Extra Charges"):
+                service.add_extra_charges(new_extra, charge_desc)
+                self.service_manager.save()
+                st.success("Extra charges updated")
+                st.rerun()
+        
+        with col2:
+            st.subheader("📝 Work Description")
+            work_done = st.text_area("Work Done Description", value=d.get("work_done", ""), height=100)
+            if st.button("Save Work Description"):
+                service.save_work_description(work_done)
+                self.service_manager.save()
+                st.success("Work description saved")
+                st.rerun()
 
         st.markdown("---")
-        st.subheader("💳 Payment Management")
-        c1, c2 = st.columns(2)
-        with c1:
-            payment_status_options = ["Pending", "Done"]
-            current_payment = d.get('payment_status', 'Pending')
-            try:
-                current_payment_index = payment_status_options.index(current_payment)
-            except ValueError:
-                current_payment_index = 0
-            payment_status = st.selectbox("Payment Status", payment_status_options, index=current_payment_index)
-            if st.button("💳 Update Payment Status"):
-                try:
-                    service.payment_status = payment_status
-                    self.service_manager.save()
-                    st.success("✅ Payment status updated!")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"❌ Failed to update payment: {e}")
-        with c2:
-            if d.get('payment_status', 'Pending') == 'Pending':
-                st.error(f"⏳ Payment Pending: ₹{total_cost}")
-            else:
-                st.success(f"✅ Payment Completed: ₹{total_cost}")
+        st.subheader("💳 Payment Information")
+        payment_status = d.get("payment_status", "Pending")
+        base = d.get('base_cost', 0) or 0
+        extra = d.get('extra_charges', 0) or 0
+        paid_amt = d.get("Paid",0) or 0
+        total = base + extra
+        st.write(f"Base Cost: ₹{base}")
+        st.write(f"Extra Charges: ₹{extra}")
+        st.write(f"Total Cost: ₹{total}")
+        st.write(f"Paid Amount: ₹{paid_amt}")
+        st.write(f"Payment Status: {payment_status}")
 
     def show_statistics_and_logout(self):
         st.markdown("---")
         st.subheader("📊 Quick Statistics")
-        try:
-            all_services = self.service_manager.services
-            col1, col2, col3, col4 = st.columns(4)
-            with col1:
-                st.metric("📋 Total Services", len(all_services))
-            with col2:
-                completed = len([s for s in all_services if s.status == 'Completed'])
-                st.metric("✅ Completed Services", completed)
-            with col3:
-                pending = len([s for s in all_services if s.status == 'Pending'])
-                st.metric("⏳ Pending Services", pending)
-            with col4:
-                total_revenue = sum(
-                    (s.data.get('base_cost', 0) or 0) + (s.data.get('extra_charges', 0) or 0)
-                    for s in all_services if s.data.get('payment_status') == 'Done'
-                )
-                st.metric("💰 Total Revenue", f"₹{total_revenue}")
-        except Exception as e:
-            st.error(f"❌ Failed to calculate statistics: {e}")
-
+        total = len(self.service_manager.services)
+        completed = len([s for s in self.service_manager.services if s.status == "Completed"])
+        pending = len([s for s in self.service_manager.services if s.status == "Pending"])
+        revenue = sum(
+            (s.data.get('base_cost', 0) or 0) + (s.data.get('extra_charges', 0) or 0)
+            for s in self.service_manager.services if s.data.get('payment_status') == "Done"
+        )
+        cols = st.columns(4)
+        cols[0].metric("📋 Total Services", total)
+        cols[1].metric("✅ Completed", completed)
+        cols[2].metric("⏳ Pending", pending)
+        cols[3].metric("💰 Revenue", f"₹{revenue}")
         st.markdown("---")
-        col1, col2, col3 = st.columns([1, 1, 1])
+        col1, col2, col3 = st.columns(3)
         with col2:
             if st.button("🚪 Logout"):
+                st.session_state.clear()
                 st.session_state.page = "login"
                 st.session_state.logged_in = False
-                st.session_state.pop("email", None)
-                st.session_state.pop("user_type", None)
-                st.session_state.pop("current_service", None)
                 st.rerun()
 
+# --- Main Entrypoint ---
+
 def main():
-    try:
-        dashboard = AdminDashboard()
-        dashboard.run()
-    except Exception as e:
-        st.error(f"❌ Critical Error: {e}")
-        st.write("Please check your database connection and configuration.")
-        st.subheader("🔧 Debug Information")
-        st.write(f"Session state: {dict(st.session_state)}")
+    dashboard = AdminDashboard()
+    dashboard.run()
 
 if __name__ == "__main__":
     main()
