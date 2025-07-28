@@ -43,7 +43,6 @@ VEHICLE_CONFIG = {
     }
 }
 
-
 class User:
     def __init__(self, data):
         self.id = data.get("id")
@@ -72,8 +71,6 @@ def validate_service_booking_form(selected_vehicle, selected_services, descripti
         errors.append("Please select a vehicle.")
     if not selected_services:
         errors.append("Select at least one service.")
-    if not description.strip():
-        errors.append("Service description is required.")
     if pickup_required == "Yes" and not pickup_address.strip():
         errors.append("Pickup address is required if pickup is selected.")
     return errors
@@ -89,11 +86,12 @@ class CustomerDashboard:
 
     def run(self):
         inject_global_css()
-        st.title("🚗 Vehicle Service Dashboard")  # Fixed main title on all pages
+        st.title("🚗 Vehicle Service Dashboard")
 
-        choice = st.sidebar.radio(
-            "Options", ["Add Vehicle", "Book Service", "Service History", "My Vehicles"]
-        )
+        options = ["Add Vehicle", "Book Service", "Service History", "My Vehicles"]
+        default_choice = st.session_state.get("sidebar_choice", "Add Vehicle")
+        choice = st.sidebar.radio("Options", options, index=options.index(default_choice))
+        st.session_state["sidebar_choice"] = choice
 
         if choice == "Add Vehicle":
             self.add_vehicle_page()
@@ -136,6 +134,9 @@ class CustomerDashboard:
                 vid = add_vehicle(vehicle_data)
                 if vid:
                     display_alert("🚗 Vehicle added successfully!", "success")
+                    # Redirect to Book Service page
+                    st.session_state["sidebar_choice"] = "Book Service"
+                    st.rerun()
                 else:
                     display_alert("❌ Failed to add vehicle. Vehicle number might already exist.", "error")
 
@@ -161,9 +162,9 @@ class CustomerDashboard:
         pickup_required = st.radio("Pickup Required?", ["Yes", "No"], horizontal=True)
         pickup_address = ""
         if pickup_required == "Yes":
-            pickup_address = st.text_area("Pickup Address")
+            pickup_address = st.text_area("Pickup Address", placeholder="Enter pickup address here")
 
-        description = st.text_area("Service Description","Empty")
+        description = st.text_area("Service Description", placeholder="Enter description here").strip()
 
         if st.button("Submit Service Request"):
             errors = validate_service_booking_form(
@@ -237,8 +238,7 @@ class CustomerDashboard:
                 del st.session_state["booking_service_id"]
                 st.rerun()
             else:
-                    display_alert("❌ Payment failed. Please try again.", "error")
-
+                display_alert("❌ Payment failed. Please try again.", "error")
 
         if st.button("🔙 Back"):
             del st.session_state["booking_service_id"]
@@ -253,7 +253,8 @@ class CustomerDashboard:
             return
 
         for s in services:
-            total_cost = s.get("base_cost", 0) + s.get("extra_charges", 0)
+            extra_charge = s.get("extra_charges", 0)
+            total_cost = s.get("base_cost", 0) + extra_charge
             payment_status = s.get("payment_status", "Pending")
             remain_amt = total_cost - s.get("Paid", 0)
             expanded_title = (
@@ -262,20 +263,21 @@ class CustomerDashboard:
                 f"Payment: {payment_status} - Total: ₹{total_cost}"
             )
             with st.expander(expanded_title, expanded=False):
-                st.write(f"**Service Types:** {', '.join(s.get('service_types', []))}")
                 st.write(
                     f"**Vehicle:** {s.get('vehicle_type', '')} - {s.get('vehicle_brand', '')} "
                     f" - {s.get('vehicle_model', '')} - ({s.get('vehicle_no', '')})"
                 )
+                st.write(f"**Service Types:** {', '.join(s.get('service_types', []))}")
                 st.write(f"**Description:** {s.get('description')}")
                 st.write(f"**Pickup Required:** {s.get('pickup_required')}")
                 if s.get("pickup_address"):
                     st.write(f"**Pickup Address:** {s.get('pickup_address')}")
                 st.write(f"**Service Date:** {s.get('service_date')}")
                 st.write(f"**Status:** {s.get('status')}")
-                st.write(f"**Assigned Mechanic:** {s.get('assigned_mechanic') or 'Not assigned'}")
-                st.write(f"**Work Done:** {s.get('work_done') or 'Not updated'}")
-                st.write(f"**Extra charge reason:** {s.get('charge_description')}")
+                st.write(f"**Work Description:** {s.get('work_done') or 'Not updated'}")
+                if extra_charge > 0:
+                    st.write(f"**Extra Cost:** ₹{extra_charge}")
+                    st.write(f"**Extra charge reason:** {s.get('charge_description')}")
                 st.write(f"**Total Cost:** ₹{total_cost}")
                 st.write(f"**Paid Amount:** ₹{s.get('Paid')}")
 
@@ -292,7 +294,6 @@ class CustomerDashboard:
     def my_vehicles_page(self):
         st.header("🚗 My Vehicles")
         vehicles = fetch_vehicles_by_user(self.user.id)
-
         if not vehicles:
             st.info("You have no vehicles registered.")
             return

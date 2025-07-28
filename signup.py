@@ -9,7 +9,6 @@ from database import fetch_all_users, add_user
 
 class SignUpPage:
     def __init__(self):
-        # Initialize fields (useful for validation and state)
         self.full_name = ""
         self.email = ""
         self.phone = ""

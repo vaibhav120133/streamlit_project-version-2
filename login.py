@@ -7,20 +7,15 @@ from database import fetch_all_users
 
 class LoginPage:
     def __init__(self):
-        # Any required instance variables can be defined here
         self.email = ""
         self.password = ""
         self.login_submitted = False
 
-    def setup(self):
-        inject_global_css()
-
-    def show_title(self):
-        col1, col2, col3 = st.columns([1, 2, 1])
-        with col2:
+    def page_header(self, col):
+        with col:
             st.title("🔐 Welcome Back")
             st.markdown("Sign in to access your dashboard")
-        return col2
+            st.divider()
 
     def login_form(self, col):
         with col:
@@ -75,16 +70,15 @@ class LoginPage:
                 st.rerun()
 
     def render(self):
-        self.setup()
-        self.show_title()
+        inject_global_css()
         col1, col2, col3 = st.columns([1, 2, 1])
+        self.page_header(col2)
         self.login_form(col2)
         self.handle_login()
         self.action_buttons(col2)
 
 def main():
-    page = LoginPage()
-    page.render()
+    LoginPage().render()
 
 if __name__ == "__main__":
     main()

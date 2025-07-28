@@ -262,7 +262,7 @@ class AdminDashboard:
         d = service.data
 
         st.title("🔧 Service Details")
-        st.write(f"Service ID: {service_id}")
+        st.write(f"**Service ID: {service_id}**")
         if st.button("← Back", key="back_button"):
             st.session_state['current_service'] = None
             st.rerun()
@@ -285,6 +285,7 @@ class AdminDashboard:
             st.write(f"**Vehicle No:** {d.get('vehicle_no', 'N/A')}")
             st.write(f"**Service Types:** {display_service_type(d)}")
             st.write(f"**Description:** {d.get('description', '')}")
+        st.markdown("---")
 
         col1, col2 = st.columns(2)
         with col1:
@@ -321,12 +322,12 @@ class AdminDashboard:
                 self.service_manager.save()
                 st.success("Mechanic assigned successfully")
                 st.rerun()
-
+        st.markdown("---")
         col1, col2 = st.columns(2)
         with col1:
             st.subheader("💸 Extra Charges")
             new_extra = st.number_input(
-                "Extra Charges (₹)", min_value=0, value=service.extra_charges
+                "Extra Charges (₹)", min_value=0, value=service.extra_charges, step=10
             )
             charge_desc = st.text_input("Description for Extra Charges", value=service.charge_description)
             if st.button("Update Extra Charges"):
@@ -351,11 +352,11 @@ class AdminDashboard:
         extra = d.get('extra_charges', 0) or 0
         paid_amt = d.get("Paid",0) or 0
         total = base + extra
-        st.write(f"Base Cost: ₹{base}")
-        st.write(f"Extra Charges: ₹{extra}")
-        st.write(f"Total Cost: ₹{total}")
-        st.write(f"Paid Amount: ₹{paid_amt}")
-        st.write(f"Payment Status: {payment_status}")
+        st.write(f"**Base Cost:** ₹{base}")
+        st.write(f"**Extra Charges:** ₹{extra}")
+        st.write(f"**Total Cost:** ₹{total}")
+        st.write(f"**Paid Amount:** ₹{paid_amt}")
+        st.write(f"**Payment Status:** {payment_status}")
 
     def show_statistics_and_logout(self):
         st.markdown("---")

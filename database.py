@@ -4,7 +4,6 @@ import json
 
 
 def get_connection():
-    """Get a database connection from Streamlit secrets."""
     try:
         db = st.secrets["mysql"]
         connection = pymysql.connect(
@@ -85,8 +84,6 @@ def create_tables():
                         FOREIGN KEY (assigned_mechanic) REFERENCES mechanics(mechanic_id) ON DELETE SET NULL
                     );
                 """)
-
-        st.success("✅ Database tables created or verified successfully.")
     except Exception as e:
         st.error(f"❌ Failed to create tables: {e}")
 

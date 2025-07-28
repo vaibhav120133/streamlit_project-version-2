@@ -3,8 +3,7 @@ import base64
 import os
 
 def set_home_background():
-    """Special background for home page"""
-    image_path = "background1.png"
+    image_path = "static\home_bg_image.png"
     try:
         if os.path.exists(image_path):
             with open(image_path, "rb") as img_file:
@@ -118,15 +117,15 @@ def set_home_background():
     except Exception as e:
         st.error(f"Error loading background image: {str(e)}")
 
-def inject_global_css(bg_image_path="bg_image.jpg"):
-    """Inject the common CSS and background image used on all non-home pages."""
+def inject_global_css():
+    image_path="static/bg_image.jpg"
     def _encode_image(path):
         if os.path.exists(path):
             with open(path, "rb") as f:
                 return base64.b64encode(f.read()).decode()
         return None
 
-    b64 = _encode_image(bg_image_path)
+    b64 = _encode_image(image_path)
     bg_css = ""
     if b64:
         bg_css = f"""
@@ -287,33 +286,6 @@ def check_password(password: str) -> bool:
         and any(c in special_chars for c in password)
     )
 
-
-def display_metric_card(title: str, value, color="primary"):
-    color_map = {
-        "primary": "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-        "success": "linear-gradient(135deg, #11998e 0%, #38ef7d 100%)",
-        "warning": "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
-        "info": "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)",
-    }
-    st.markdown(
-        f"""
-        <div style="
-            background: {color_map.get(color, color_map['primary'])};
-            color: white;
-            padding: 20px;
-            border-radius: 15px;
-            text-align: center;
-            margin: 10px;
-            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
-        ">
-            <h3 style="margin: 0; color: white;">{title}</h3>
-            <h2 style="margin: 10px 0 0 0; color: white; font-size: 2em;">{value}</h2>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
 def display_alert(message: str, alert_type="info"):
     color_map = {
         "success": "linear-gradient(135deg, #11998e 0%, #38ef7d 100%)",
@@ -336,32 +308,3 @@ def display_alert(message: str, alert_type="info"):
         """,
         unsafe_allow_html=True,
     )
-
-
-def create_navigation_buttons():
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-        if st.button("🏠 Home", key="nav_home"):
-            st.session_state.page = "home"
-            st.rerun()
-
-    with col2:
-        if st.button("👤 Profile", key="nav_profile"):
-            if st.session_state.get("logged_in", False):
-                user_type = st.session_state.get("user_type", "Customer")
-                if user_type == "Admin":
-                    st.session_state.page = "admin_dashboard"
-                else:
-                    st.session_state.page = "customer_service"
-            else:
-                st.session_state.page = "login"
-            st.rerun()
-
-    with col3:
-        if st.button("🚪 Logout", key="nav_logout"):
-            st.session_state.page = "home"
-            st.session_state.logged_in = False
-            st.session_state.pop("email", None)
-            st.session_state.pop("user_type", None)
-            st.rerun()
