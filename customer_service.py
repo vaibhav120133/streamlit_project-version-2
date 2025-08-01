@@ -21,7 +21,6 @@ SERVICE_PRICES = {
     "Brake Check": 200,
 }
 
-# Vehicle configuration for dropdowns
 VEHICLE_CONFIG = {
     "Car": {
         "brands": ["Toyota", "Honda", "Hyundai"],

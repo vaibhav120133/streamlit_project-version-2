@@ -8,8 +8,6 @@ from database import (
     fetch_all_users,
 )
 
-# --- Utility Functions ---
-
 def display_service_type(service_dict):
     """Format service types for display."""
     if not service_dict:
@@ -21,8 +19,6 @@ def display_service_type(service_dict):
         else:
             return str(service_types)
     return "N/A"
-
-# --- Data Classes ---
 
 class Service:
     def __init__(self, data):
@@ -94,8 +90,6 @@ class Service:
         ]
         return {k: self.data[k] for k in keys if k in self.data}
 
-# --- Managers ---
-
 class ServiceManager:
     def __init__(self):
         self.reload_services()
@@ -131,8 +125,6 @@ class UserManager:
 
     def get_user_by_email(self, email):
         return next((u for u in self.users if u.get('email') == email), None)
-
-# --- Dashboard Class ---
 
 class AdminDashboard:
     def __init__(self):
@@ -364,15 +356,17 @@ class AdminDashboard:
         total = len(self.service_manager.services)
         completed = len([s for s in self.service_manager.services if s.status == "Completed"])
         pending = len([s for s in self.service_manager.services if s.status == "Pending"])
+        progress = len([s for s in self.service_manager.services if s.status == "In Progress"])
         revenue = sum(
             (s.data.get('base_cost', 0) or 0) + (s.data.get('extra_charges', 0) or 0)
             for s in self.service_manager.services if s.data.get('payment_status') == "Done"
         )
-        cols = st.columns(4)
+        cols = st.columns(5)
         cols[0].metric("📋 Total Services", total)
         cols[1].metric("✅ Completed", completed)
         cols[2].metric("⏳ Pending", pending)
-        cols[3].metric("💰 Revenue", f"₹{revenue}")
+        cols[3].metric("⏳ In Progress", progress)
+        cols[4].metric("💰 Revenue", f"₹{revenue}")
         st.markdown("---")
         col1, col2, col3 = st.columns(3)
         with col2:
@@ -381,9 +375,7 @@ class AdminDashboard:
                 st.session_state.page = "login"
                 st.session_state.logged_in = False
                 st.rerun()
-
-# --- Main Entrypoint ---
-
+                
 def main():
     dashboard = AdminDashboard()
     dashboard.run()

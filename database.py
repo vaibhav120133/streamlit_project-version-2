@@ -22,7 +22,6 @@ def get_connection():
 
 
 def create_tables():
-    """Create database tables if they don't exist, using normalized users, vehicles, service_types, mechanics."""
     try:
         connection = get_connection()
         with connection:
@@ -146,8 +145,6 @@ def get_user_by_email(email):
         st.error(f"❌ Failed to fetch user by email: {e}")
         return None
 
-
-# Vehicles
 def fetch_vehicles_by_user(user_id):
     try:
         with get_connection() as conn:
@@ -185,7 +182,6 @@ def add_vehicle(vehicle_data):
         return None
 
 
-# Mechanics
 def fetch_all_mechanics():
     try:
         with get_connection() as conn:
@@ -196,7 +192,6 @@ def fetch_all_mechanics():
         st.error(f"❌ Failed to fetch mechanics: {e}")
         return []
 
-# Services
 def save_service(service_data):
     """
     Save a new service; service_types stored as JSON array of selected service_type names or IDs.

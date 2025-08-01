@@ -37,7 +37,6 @@ class SignUpPage:
 
     @staticmethod
     def check_existing_users(full_name, email, phone):
-        """Return False, error_msg if conflict found"""
         users = fetch_all_users()
         if any(u["full_name"].lower() == full_name.lower() for u in users):
             return False, "❌ Full name already exists. Please choose another."
