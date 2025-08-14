@@ -3,7 +3,7 @@ import base64
 import os
 
 def set_home_background():
-    image_path = "static\home_bg_image.png"
+    image_path = "static/home_bg_image.png"
     try:
         if os.path.exists(image_path):
             with open(image_path, "rb") as img_file:
