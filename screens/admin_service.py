@@ -1,12 +1,9 @@
 import streamlit as st
 from datetime import datetime, date
-from utils import inject_global_css
-from database import (
-    fetch_all_services,
-    fetch_all_mechanics,
-    update_service,
-    fetch_all_users,
-)
+from utils import global_css
+from database.services import ServiceManager as DBServiceManager
+from database.mechanics import MechanicService
+from database.users import UserService
 
 def display_service_type(service_dict):
     """Format service types for display."""
@@ -19,6 +16,7 @@ def display_service_type(service_dict):
         else:
             return str(service_types)
     return "N/A"
+
 
 class Service:
     def __init__(self, data):
@@ -75,7 +73,7 @@ class Service:
         self.charge_description = charge_desc
         base_cost = self.data.get('base_cost', 0) or 0
         total_cost = base_cost + extra_charges
-        paid_amt = self.data.get('Paid',0) or 0
+        paid_amt = self.data.get('Paid', 0) or 0
         if self.payment_status == "Done" and total_cost > paid_amt:
             self.data['payment_status'] = 'Pending'
 
@@ -85,40 +83,51 @@ class Service:
     def to_update_dict(self):
         """Return only updatable fields."""
         keys = [
-            'status', 'assigned_mechanic', 'extra_charges', 
+            'status', 'assigned_mechanic', 'extra_charges',
             'charge_description', 'work_done', 'description', 'payment_status'
         ]
         return {k: self.data[k] for k in keys if k in self.data}
 
-class ServiceManager:
+
+class AdminServiceManager:
     def __init__(self):
         self.reload_services()
 
     def reload_services(self):
         try:
-            raw_services = fetch_all_services()
+            raw_services = DBServiceManager().fetch_all_services()
             self.services = [Service(s) for s in raw_services if s]
         except Exception as e:
             st.error(f"Failed to reload services: {e}")
             self.services = []
 
     def save(self):
+        """Persist updated services to DB."""
         try:
-            for srv in self.services:
-                if srv.service_id:
-                    updates = srv.to_update_dict()
-                    if updates:
-                        update_service(srv.service_id, updates)
+            from database.connection import db_manager
+            with db_manager.get_connection() as conn, conn.cursor() as cur:
+                for srv in self.services:
+                    if srv.service_id:
+                        updates = srv.to_update_dict()
+                        if updates:
+                            set_clause = ", ".join(f"{k}=%s" for k in updates)
+                            values = list(updates.values()) + [srv.service_id]
+                            cur.execute(
+                                f"UPDATE services SET {set_clause} WHERE service_id=%s",
+                                values
+                            )
+            st.success("✅ Changes saved successfully.")
         except Exception as e:
             st.error(f"Failed to save services: {e}")
 
     def get_by_id(self, service_id):
         return next((srv for srv in self.services if str(srv.service_id) == str(service_id)), None)
 
+
 class UserManager:
     def __init__(self):
         try:
-            self.users = fetch_all_users()
+            self.users = UserService().fetch_all_users()
         except Exception as e:
             st.error(f"Failed to load users: {e}")
             self.users = []
@@ -126,25 +135,30 @@ class UserManager:
     def get_user_by_email(self, email):
         return next((u for u in self.users if u.get('email') == email), None)
 
+
 class AdminDashboard:
     def __init__(self):
-        self.service_manager = ServiceManager()
+        self.service_manager = AdminServiceManager()
         self.user_manager = UserManager()
-        self.mechanics = fetch_all_mechanics()
+        self.mechanics = MechanicService().fetch_all_mechanics()
         self.mechanic_options = {m['mechanic_id']: m['mechanic_name'] for m in self.mechanics}
 
     def run(self):
-        inject_global_css()
+        global_css()
         st.title("⚙️ Admin Dashboard")
         self.welcome_message()
+
         if 'current_service' not in st.session_state:
             st.session_state['current_service'] = None
+
         if st.session_state['current_service']:
             self.show_service_detail_page(st.session_state['current_service'])
             return
+
         if st.button("🔄 Reload Services"):
             self.service_manager.reload_services()
             st.rerun()
+
         self.show_filters_ui()
         self.show_statistics_and_logout()
 
@@ -158,6 +172,7 @@ class AdminDashboard:
         st.header("🔍 Filter Services")
         total_services = len(self.service_manager.services)
         st.info(f"📊 Total services in system: {total_services}")
+
         col1, col2, col3, col4 = st.columns(4)
         with col1:
             default_start = date.today().replace(day=1)
@@ -174,6 +189,7 @@ class AdminDashboard:
             vehicle_number_filter = st.text_input(
                 "Vehicle Number Filter", placeholder="Type vehicle no..."
             )
+
         filtered = self.filter_services(start_date, end_date, status_filter, vehicle_number_filter)
         self.show_services_list(filtered)
 
@@ -368,9 +384,10 @@ class AdminDashboard:
         cols[3].metric("⏳ In Progress", progress)
         cols[4].metric("💰 Revenue", f"₹{revenue}")
         st.markdown("---")
-        col1, col2, col3 = st.columns(3)
-        with col2:
+        col1, col2, col3, col4, col5 = st.columns(5)
+        with col3:
             if st.button("🚪 Logout"):
+                print(f"[LOGOUT] {st.session_state.get('user_type', 'Unknown')} logged out: {st.session_state.get('email', 'Unknown')}")
                 st.session_state.clear()
                 st.session_state.page = "login"
                 st.session_state.logged_in = False

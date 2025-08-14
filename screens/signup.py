@@ -1,11 +1,11 @@
 import streamlit as st
 from utils import (
-    inject_global_css,
+    global_css,
     display_alert,
     check_password,
     display_password_requirements,
 )
-from database import fetch_all_users, add_user
+from database.users import UserService
 
 class SignUpPage:
     def __init__(self):
@@ -18,7 +18,10 @@ class SignUpPage:
 
     @staticmethod
     def validate_user_input(full_name, email, phone, password, confirm_password):
-        """Validate all user input and return (True, msg) or (False, error_msg)"""
+        """
+        Validate all user input and return (True, msg) or (False, error_msg)
+        
+        """
         if not full_name or not email or not phone or not password or not confirm_password:
             return False, "⚠️ Please fill in all fields"
         if len(full_name.strip()) < 2:
@@ -37,7 +40,7 @@ class SignUpPage:
 
     @staticmethod
     def check_existing_users(full_name, email, phone):
-        users = fetch_all_users()
+        users = UserService().fetch_all_users()
         if any(u["full_name"].lower() == full_name.lower() for u in users):
             return False, "❌ Full name already exists. Please choose another."
         if any(u["email"].lower() == email.lower() for u in users):
@@ -49,10 +52,7 @@ class SignUpPage:
     def page_header(self, col):
         with col:
             st.title("🚀 Join Our Community")
-            st.markdown(
-                "Create your account to access premium vehicle services"
-            )
-            st.divider()
+            st.caption("Create your account to access vehicle services")
 
     def signup_form(self, col):
         with col:
@@ -117,7 +117,7 @@ class SignUpPage:
                         "password": self.password,
                         "user_type": "Customer"
                     }
-                    add_user(user)
+                    UserService().add_user(user)
                     display_alert(f"🎉 Registration successful! Welcome, {self.full_name}!", "success")
                     st.session_state.logged_in = True
                     st.session_state.email = self.email.lower().strip()
@@ -148,7 +148,7 @@ class SignUpPage:
             )
 
     def render(self):
-        inject_global_css()
+        global_css()
         col1, col2, col3 = st.columns([1,2,1])
         self.page_header(col2)
         self.signup_form(col2)

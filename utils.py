@@ -44,15 +44,15 @@ def set_home_background():
                 .stButton {{
                     display: flex;
                     justify-content: center;
-                    width: 50%;
-                    margin: 0 auto;
+                    width: 40%;
+                    margin-bottom: 0px !important;
                 }}
                 
                 .stButton > button {{
                     background: linear-gradient(45deg, #FF6B6B, #FF8E8E);
                     color: white !important;
                     border: none !important;
-                    padding: 20px 40px !important;
+                    padding: 20px 20px !important;
                     font-size: 24px !important;
                     font-weight: 700 !important;
                     border-radius: 50px !important;
@@ -73,11 +73,13 @@ def set_home_background():
                     width: 100%;
                     overflow: hidden;
                     background: rgba(255,255,255,0.1);
-                    backdrop-filter: blur(0px);
+                    backdrop-filter: blur(5px);
                     border-radius: 20px;
-                    padding: 10px 0;
-                    margin-top: 10px;
+                    height: 50px;
+                    padding: 0;
                     position: relative;
+                    margin-top: 0px !important;
+                    margin-bottom: 30px;
                 }}
                 
                 .moving-text {{
@@ -95,7 +97,7 @@ def set_home_background():
                     background: rgba(255,255,255,0.2);
                     padding: 10px 20px;
                     border-radius: 20px;
-                    backdrop-filter: blur(5px);
+                    backdrop-filter: blur(6px);
                     color: white;
                     font-weight: 600;
                     text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
@@ -117,8 +119,8 @@ def set_home_background():
     except Exception as e:
         st.error(f"Error loading background image: {str(e)}")
 
-def inject_global_css():
-    image_path="static/bg_image.jpg"
+def global_css():
+    image_path= r"static\bg_image.jpg"
     def _encode_image(path):
         if os.path.exists(path):
             with open(path, "rb") as f:
@@ -145,6 +147,32 @@ def inject_global_css():
                 backdrop-filter: blur(10px);
             }}
         """
+    custom_class_css = """
+        .st-emotion-cache-zy6yx3 {
+            width: 100%;
+            padding-top: 2rem;
+            max-width: initial;
+            min-width: auto;
+        }
+        .st-emotion-cache-gkoddq {
+            position: absolute;
+            top: 0px;
+            left: 0px;
+            right: 0px;
+            display: flex;
+            -webkit-box-align: center;
+            align-items: center;
+            height: 3.75rem;
+            min-height: 3.75rem;
+            width: 100%;
+            background: transparent;
+            outline: none;
+            z-index: 999990;
+            pointer-events: auto;
+            font-size: 0.875rem;
+        }
+
+    """
     common_css = """
         .stButton > button, .stFormSubmitButton > button {
             background: rgba(52, 73, 94, 0.9) !important;
@@ -247,7 +275,7 @@ def inject_global_css():
         }
     """
 
-    st.markdown(f"<style>{bg_css}{common_css}</style>", unsafe_allow_html=True)
+    st.markdown(f"<style>{bg_css}{custom_class_css}{common_css}</style>", unsafe_allow_html=True)
 
 
 def display_password_requirements(password: str):

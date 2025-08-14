@@ -1,6 +1,7 @@
 venv/
 *.log
-__pycache__/
+screens/__pycache__/
 .DS_Store
 Thumbs.db
 .streamlit/secrets.toml
+__pycache__/

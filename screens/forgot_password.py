@@ -1,11 +1,11 @@
 import streamlit as st
 from utils import (
-    inject_global_css,
+    global_css,
     check_password,
     display_password_requirements,
     display_alert
 )
-from database import fetch_all_users, add_user
+from database.users import UserService
 
 class ForgotPasswordFlow:
     def __init__(self):
@@ -50,7 +50,7 @@ class ForgotPasswordFlow:
     def step_1_verify(self, col2):
         with col2:
             st.title("🔍 Account Verification")
-            st.caption(":red[Please enter your registered email and phone number]")
+            st.caption("Please enter your registered email and phone number")
 
             with st.form("verification_form"):
                 st.markdown("### 📧 Email Address")
@@ -75,7 +75,7 @@ class ForgotPasswordFlow:
                 if not email_lc or not phone_str:
                     display_alert("⚠️ Please enter both email and phone number", "error")
                 else:
-                    users = fetch_all_users()
+                    users = UserService.fetch_all_users()
                     user = next(
                         (u for u in users if u.get("email", "").lower() == email_lc and u.get("phone", "") == phone_str),
                         None
@@ -125,7 +125,7 @@ class ForgotPasswordFlow:
                 if not valid:
                     display_alert(message, "error")
                 else:
-                    users = fetch_all_users()
+                    users = UserService.fetch_all_users()
                     updated = False
                     for i, user in enumerate(users):
                         if (
@@ -136,7 +136,7 @@ class ForgotPasswordFlow:
                             updated = True
                             break
                     if updated:
-                        add_user(users)
+                        UserService.add_user(users)
                         st.session_state.fp_step = 3
                         display_alert("🎉 Password reset successful!", "success")
                         st.balloons()
@@ -208,7 +208,7 @@ class ForgotPasswordFlow:
             self.display_security_notice()
 
     def run(self):
-        inject_global_css()
+        global_css()
         col1, col2, col3 = st.columns([1, 2, 1])
 
         if st.session_state.fp_step == 1:
